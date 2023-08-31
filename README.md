@@ -1,5 +1,5 @@
 # About OCMS_Toolkit
-OCMS_Toolkit is a repository for useful bioinformatics scripts. It is mainly directed at OCMS memembers working on BMRC.
+OCMS_Toolkit is a repository of scripts useful for bioinformatics work at OCMS.
 
 # Requirements
 python 3.8
