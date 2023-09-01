@@ -33,7 +33,7 @@ import os
 import getpass
 import pwd
 import grp
-import cgatcore.experiment as E
+import argparse
 
 def main(argv=None):
     """script main.
@@ -44,7 +44,7 @@ def main(argv=None):
         argv = sys.argv
     
     # set up command line parser
-    parser = E.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description=__doc__)
     
     parser.add_argument("-p", "--project_name", dest="project_name", type=str,
                         required=True, help="name of project")
@@ -52,9 +52,8 @@ def main(argv=None):
                         choices=["group","user","both"], default="both",
                         help="level at which to set up project")
     
-    # add common options (-h/--help) and parse command line
-    (args) = E.start(parser, argv=argv)
-    
+    args = parser.parse_args()
+
     # get local username and group
     username = getpass.getuser()
     groups = [g.gr_name for g in grp.getgrall() if username in g.gr_mem]
@@ -64,13 +63,13 @@ def main(argv=None):
     group = groups[0]
     
     # set up output directories
-    project_dir = "/gpfs3/well/" + group + "/projects/" + args.project_name
-    archive_dir = "/gpfs3/well/" + group + "/projects/archive/" + args.project_name
-    data_dir = "/gpfs3/well/" + group + "/projects/" + args.project_name + "/data"
-    work_dir = "/gpfs3/well/" + group + "/users/" + username + "/work/" + args.project_name
-    devel_dir = "/gpfs3/well/" + group + "/users/" + username + "/devel/" + args.project_name
-    code_dir = "/gpfs3/well/" + group + "/users/" + username + "/devel/" + args.project_name + "/code"
-    analysis_dir = "/gpfs3/well/" + group + "/users/" + username + "/work/" + args.project_name + "/analysis"
+    project_dir = "/well/" + group + "/projects/" + args.project_name
+    archive_dir = "/well/" + group + "/projects/archive/" + args.project_name
+    data_dir = "/well/" + group + "/projects/" + args.project_name + "/data"
+    work_dir = "/well/" + group + "/users/" + username + "/work/" + args.project_name
+    devel_dir = "/well/" + group + "/users/" + username + "/devel/" + args.project_name
+    code_dir = "/well/" + group + "/users/" + username + "/devel/" + args.project_name + "/code"
+    analysis_dir = "/well/" + group + "/users/" + username + "/work/" + args.project_name + "/analysis"
     
     
     # make directories, failing if output directories already exist
@@ -90,9 +89,6 @@ def main(argv=None):
         
         # symlink code
         os.symlink(code_dir, work_dir + "/code")
-            
-        # write footer and output benchmark information
-        E.stop()
 
     def main(argv=None):
         main(argv)

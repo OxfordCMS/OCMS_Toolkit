@@ -1,2 +1,7 @@
 *~
 .ipynb*
+dist/
+ocms_toolkit.egg-info/
+ocmstoolkit/__init__.py
+build/
+ocmstoolkit/__pycache__/                                              
