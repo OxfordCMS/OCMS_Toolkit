@@ -8,7 +8,7 @@ from setuptools import setup, find_packages
 setup(
     # package information
     name='ocms_toolkit',
-    version="0.0.1",
+    version="0.0.2",
     description='OCMS_Toolkit : Oxford Centre for Microbiome Studies bioinformatic scripts',
     author='Sandi Yen, Nicholas Ilott, Jethro Johnson',
     license="MIT",
@@ -16,7 +16,7 @@ setup(
     keywords="OCMS, bioinformatics, python",
     url="https://github.com/OxfordCMS/OCMS_Toolkit",
     #packages=find_packages("./") + find_packages("./ocmstoolkit/"),
-    packages=find_packages()
+    packages=find_packages(),
     entry_points={
         'console_scripts': ['ocms_toolkit = ocmstoolkit.ocms_toolkit:main']
     },

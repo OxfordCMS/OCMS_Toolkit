@@ -8,6 +8,7 @@ import sys
 import re
 import glob
 import imp
+import cgatcore.iotools as iotools
 
 def main(argv=None):
 
@@ -20,13 +21,17 @@ def main(argv=None):
         print((globals()["__doc__"]))
 
     command = argv[1]
-    #pipeline = "pipeline_{}".format(command)
+    
+    if command in ["new_project"]:
+        pipeline = command
+    else:
+        pipeline = "pipeline_{}".format(command)
     
     # remove 'ocms_toolkit' from sys.argv
     del sys.argv[0]
 
-    (file, pathname, description) = imp.find_module(command, paths)
-    module = imp.load_module(command, file, pathname, description)
+    (file, pathname, description) = imp.find_module(pipeline, paths)
+    module = imp.load_module(pipeline, file, pathname, description)
     module.main(sys.argv)
     
 
