@@ -15,7 +15,8 @@ setup(
     platforms=["any"],
     keywords="OCMS, bioinformatics, python",
     url="https://github.com/OxfordCMS/OCMS_Toolkit",
-    packages=find_packages("./") + find_packages("./ocmstoolkit/"),
+    #packages=find_packages("./") + find_packages("./ocmstoolkit/"),
+    packages=find_packages()
     entry_points={
         'console_scripts': ['ocms_toolkit = ocmstoolkit.ocms_toolkit:main']
     },
