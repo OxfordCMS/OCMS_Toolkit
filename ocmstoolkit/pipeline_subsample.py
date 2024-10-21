@@ -89,7 +89,9 @@ def subsample_fastq(infile, outfile):
     fq = re.sub("\\.gz$", "", outfile)
     statement = '''seqtk sample -s100 %(infile)s %(depth)s > %(fq)s &&
                    gzip %(fq)s'''
-    P.run(statement)
+    P.run(statement,
+          job_threads = PARAMS['job_threads'],
+          job_memory = PARAMS['job_memory'])
 
 @follows(subsample_fastq)
 def full():
