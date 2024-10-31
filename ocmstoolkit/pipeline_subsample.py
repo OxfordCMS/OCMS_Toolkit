@@ -8,25 +8,25 @@ subsample_fastq.py
 Overview
 ========
 
-This script concatenates fastq files of paired-end reads into one fastq file. It's written as a pipeline so paired-end fastqs can be processed as a job.
+This script uses seqtk to randomly subsample fastq files (with seed)
 
 Usage
 =====
 
-Script takes in all fastq.*.gz files in current directory and concatenates paired-end reads for each sample into one fastq file. Concatenated fastqs written to  concat_fastq.dir
+Script takes in all fastq.*gz files in input.dir and subsamples to a specified read depth.
 
 Example::
 
-    ocms subsample_fastq make full
+    ocms_toolkit subsample_fastq make full
 
 
 Configuration
 -------------
-No configuration required
+ocms_toolkit subsample_fastq config
 
 Input files
 -----------
-Input files should be fastq.1.gz, fastq.2.gz
+Input files should be fastq files. Can be single (fastq.gz) or paired-end reads (fastq.1.gz, fastq.2.gz). 
 
 
 Requirements
@@ -35,7 +35,7 @@ module load seqtk/1.4-GCC-12.2.0
 
 Pipeline output
 ===============
-reads from fastq.1.gz and fastq.2.gz concatenated into a fastq.gz file
+subsampled.dir containing subsampled fastq files.
 
 
 Glossary
