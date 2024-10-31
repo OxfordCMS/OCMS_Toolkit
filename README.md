@@ -25,6 +25,30 @@ ocms_toolkit new_project --project_name=NEW_PROJECT --level=both
 `-p` or `--project_name` is the new project name
 `-l` or `--level` is the level at which new projects should be made. Takes `group`, `user`, or `both`. `--level=group` creates the directories in `projects` and `archive`. `l-level=user` creates directories in `devel` and `work`. `--level=both` makes all directories. You may want to set `--level=user` if the project has already been created in `project` and `archive` and you just need the directories in your own user space.
 
+### rename_and_link
+User this script to sym link files and rename the sym links based ona mapping file. This is helpful for symlinking files that have very long/cumbersome barcodes produced by the sequencer. This is a stripped back version of combine_lanes.py
+
+This script takes four parameters.
+`-i` or `--indir` Specifying input directory containing files to be symlinked.
+`-s` or `--sufix` specifies the file extension of files to be symlinked (i.e. `.fastq.1.gz`, `.fastq.gz` etc.)
+`-o` or `--outdir` Output directory is the location where symlinks will be created.
+`-m` or `--mapping` specifies the file that maps the original barcodes and the new IDs to be used when renaming
+
+```
+    ocms rename_and_link --indir=<INDIR> --suffix=<SUFFIX> --outdir=<OUTDIR> --mapping<ID-MAPPING>
+    ocms rename_and_link -i raw -s .fastq.1.gz -o renamed -m id_mapping.tsv
+    indir/
+	/raw/long_barcode1.fastq.1.gz
+	/raw/long_barcode2.fastq.1.gz
+    outdir/
+	/renamed/clean_id1.fastq.1.gz
+	/renamed/clean_id2.fastq.1.gz
+
+    mapping.tsv
+    long_barcode1    clean_id1
+    long_barcode2    clean_id2
+```
+
 ## pipelines
 ### pipeline_subsample.py
 This script uses seqtk to randomly subsample fastq files (with seed). Script takes in all fastq.*gz in input.dir and subsamples to a specified read depth.
