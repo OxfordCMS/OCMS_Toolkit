@@ -28,19 +28,19 @@ ocms_toolkit new_project --project_name=NEW_PROJECT --level=both
 ### rename_and_link
 User this script to sym link files and rename the sym links based ona mapping file. This is helpful for symlinking files that have very long/cumbersome barcodes produced by the sequencer. This is a stripped back version of combine_lanes.py
 
-This script takes four parameters.
+This script takes five parameters.
 `-i` or `--indir` Specifying input directory containing files to be symlinked.
-`-s` or `--sufix` specifies the file extension of files to be symlinked (i.e. `.fastq.1.gz`, `.fastq.gz` etc.)
+`-s` or `--suffix` specifies the file extension of files to be symlinked (i.e. `.fastq.1.gz`, `.fastq.gz` etc.)
 `-o` or `--outdir` Output directory is the location where symlinks will be created.
 `-m` or `--mapping` specifies the file that maps the original barcodes and the new IDs to be used when renaming
-
+`-l` or `--log` specifies name of logfile produced. default=read.map
 ```
     ocms rename_and_link --indir=<INDIR> --suffix=<SUFFIX> --outdir=<OUTDIR> --mapping<ID-MAPPING>
-    ocms rename_and_link -i raw -s .fastq.1.gz -o renamed -m id_mapping.tsv
-    indir/
+    ocms rename_and_link -i raw -s .fastq.1.gz -o renamed -m id_mapping.tsv -l read1.map
+    raw/
 	/raw/long_barcode1.fastq.1.gz
 	/raw/long_barcode2.fastq.1.gz
-    outdir/
+    renamed/
 	/renamed/clean_id1.fastq.1.gz
 	/renamed/clean_id2.fastq.1.gz
 

@@ -13,21 +13,22 @@ Use this script to sym link files and renames the sym links based on a id_mappin
 Usage
 -----
 
-The script takes four parameters. Specifying input directory --indir containing files to be symlinked. --suffix specifies the file extension of files to be symlinked (i.e. .fastq.1.gz, .fastq.gz etc.) Output directory --outdir is location where symlinks will be created. --mapping specifyies the file that maps the original barcodes and the new ids to be used when renaming.
+The script takes four parameters. Specifying input directory --indir containing files to be symlinked. --suffix specifies the file extension of files to be symlinked (i.e. .fastq.1.gz, .fastq.gz etc.) Output directory --outdir is location where symlinks will be created. --mapping specifyies the file that maps the original barcodes and the new ids to be used when renaming. --log name of logfile, default = read.map
 
 Example::
     ocms rename_and_link --indir=<INDIR> --suffix=<SUFFIX> --outdir=<OUTDIR> --mapping<ID-MAPPING>
-    ocms rename_and_link -i raw_fastq -s .fastq.1.gz -o renamed_fastq -m id_mapping.tsv
+    ocms rename_and_link -i raw -s .fastq.1.gz -o renamed -m id_mapping.tsv -l read1.map
     
-    indir/
+    raw/
         /raw/long_barcode1.fastq.1.gz
         /raw/long_barcode2.fastq.1.gz
-    outdir/
+    renamed/
         /renamed/clean_id1.fastq.1.gz
         /renamed/clean_id2.fastq.1.gz
     mapping.tsv
     long_barcode1    clean_id1
     long_barcode2    clean_id2
+
 Type::
   
     ocms rename_and_link --help
@@ -68,6 +69,9 @@ def main(argv=None):
                               " First column is barcode (no file extension)."
                               " Second column is sample ID that files will be renamed to"
                               " (no file extension)"))
+    parser.add_argument("-l", "--log", dest="logfile", type=str,
+                        required=True, default='read.map',
+                        help="name of log file, default=read.map"
 
     # unpack commandline arguments
     args = parser.parse_args()
@@ -80,9 +84,10 @@ def main(argv=None):
     readfiles.sort()
 
     # checks for existing read.map in output directory
-    assert not os.path.isfile(os.path.join(args.outdir,'read.map')), ("read.map already exists in the output directory."
-                                           " Rename or delete existing read.map before"
-                                           " running rename_and_link")
+    assert not os.path.isfile(os.path.join(args.outdir,args.logfile)),
+                        ("{} already exists in the output directory."
+                         " Specify different name for log file"
+                         " with --log".format(args.logfile, args.logfile)
 
     #read identifier map into dictionary
     mapping_dict = {}
