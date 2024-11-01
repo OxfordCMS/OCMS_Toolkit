@@ -22,7 +22,7 @@ def main(argv=None):
 
     command = argv[1]
     
-    if command in ["new_project"]:
+    if command in ["new_project", "rename_and_link"]:
         pipeline = command
     else:
         pipeline = "pipeline_{}".format(command)
