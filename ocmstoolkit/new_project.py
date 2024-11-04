@@ -66,6 +66,7 @@ def main(argv=None):
     project_dir = "/well/" + group + "/projects/" + args.project_name
     archive_dir = "/well/" + group + "/projects/archive/" + args.project_name
     data_dir = "/well/" + group + "/projects/" + args.project_name + "/data"
+    pipeline_dir = "/well/" + group + "/projects/" + args.project_name + "/pipelines"
     work_dir = "/well/" + group + "/users/" + username + "/work/" + args.project_name
     devel_dir = "/well/" + group + "/users/" + username + "/devel/" + args.project_name
     code_dir = "/well/" + group + "/users/" + username + "/devel/" + args.project_name + "/code"
@@ -78,6 +79,7 @@ def main(argv=None):
     
         os.makedirs(project_dir, exist_ok=False)
         os.makedirs(data_dir, exist_ok=False)
+        os.makedirs(pipeline_dir, exist_ok=False)
         os.makedirs(archive_dir, exist_ok=False)
         
     # work and devel directories
