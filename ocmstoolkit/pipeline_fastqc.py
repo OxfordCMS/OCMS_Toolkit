@@ -80,28 +80,42 @@ P.initialize()
 # Define input files and preprocessing steps list of acceptable input
 # formats
 
-# only work with paired end for now
-SEQUENCEFILES = ["*.fastq.[1-2].gz"]
-SEQUENCEFILES_REGEX = r"(\S+)(\.fastq\.)([1-2]).gz"
+PARAMS = P.get_parameters(['pipeline.yml'])
+
+# optional group agnostic to paired end or single end reads
+SEQUENCEFILES = ["*.fastq.*gz"]
+SEQUENCEFILES_REGEX = r"(\S+)(\.fastq)(\.[1-2])?.gz"
 
 @follows(mkdir("fastqc.dir"))
-@transform("*fastq.*.gz",
+@transform(SEQUENCEFILES,
            regex(SEQUENCEFILES_REGEX),
-           r"fastqc.dir/\1_\3.fastqc")
-def runFastQC(infile, outfile):
+           r"fastqc.dir/\1\3.fastqc")
+def runFastQC(infile, outfile, seq_regex=SEQUENCEFILES_REGEX):
     '''run FastQC on each input file.
     '''
-    outdir = os.path.join("fastqc.dir/", os.path.basename(outfile.replace(".", "_")))
-    to_move = os.path.join("fastqc.dir", infile.replace(".gz", "_fastqc"))
-    to_move_html = os.path.join("fastqc.dir", infile.replace(".gz", "_fastqc.html"))
-    to_move_zip = os.path.join("fastqc.dir", infile.replace(".gz", "_fastqc.zip"))
-    out1 = to_move_html.replace(".fastq.", "_")
-    out2 = to_move_zip.replace(".fastq.", "_")
-    statement = '''fastqc --extract --outdir=fastqc.dir %(infile)s;
-                   mv %(to_move)s %(outfile)s;
-                   mv %(to_move_html)s %(out1)s;
-                   mv %(to_move_zip)s %(out2)s; 
-                   rm -rf %(to_move)s'''
+    
+    outdir = os.path.join("fastqc.dir/", os.path.basename(outfile))
+    m = re.search(seq_regex, infile)
+    if m.group(3) is None:
+        fastqc_out = [m.group(1), '_fastqc']
+    else:
+        fastqc_out = [m.group(1), m.group(2), m.group(3), '_fastqc']
+    fastqc_out = ''.join(filter(None, fastqc_out))
+    
+    to_move = os.path.join("fastqc.dir", fastqc_out)
+    to_move_html = os.path.join("fastqc.dir", fastqc_out+".html")
+    to_move_zip = os.path.join("fastqc.dir", fastqc_out+".zip")
+        
+    prefix = ''.join(filter(None, [m.group(1),m.group(3)]))
+    out1 = os.path.join("fastqc.dir", prefix + ".fastqc.html")
+    out2 = os.path.join("fastqc.dir", prefix + ".fastqc.zip")
+
+    statement = ("fastqc --extract --outdir=fastqc.dir %(infile)s;"
+                 " mv %(to_move)s %(outfile)s;"
+                 " mv %(to_move_html)s %(out1)s;"
+                 " mv %(to_move_zip)s %(out2)s")
+                 #" rm -rf %(to_move)s")
+
     P.run(statement)
 
 @merge(runFastQC, "multiqc_report.html")
