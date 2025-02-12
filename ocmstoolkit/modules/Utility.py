@@ -3,46 +3,79 @@
 import os
 import re
 import glob
-import itertools
 import errno
 import cgatcore.iotools as IOTools
 
 # Check that the input files correspond
-def check_input(datadir='.', paired=True):
+def get_fastns(datadir='.', out='fastn1'):
+    '''
+    Gets all fastn files from specified directory. If detects paired ends
+    will check all samples are paired.
+    out = 'fastn1' - returns list of fastn1s (works for both se and pe cases)
+    out = 'fastn2' - returns list of fastn2s
+    out = 'all' - returns list of fastn1s and None in case of single end; 
+                  returns fastn1 and fastn2 in case of paired end
+    '''
+    assert out in ['fastn1','fastn2','all'], (
+        "get_fastns argument out accepts 'fastn1','fastn2', or 'all'"
+    )
 
-    if paired:
-        fq1_regex = re.compile('(\S+).(fastq.1.gz)')
-    else:
-        fq1_regex = re.compile('(\S+).(fastq.gz)')
+    # look for all fastn.1.gz, fastn.2.gz, fastn.gz
+    fn_regex = re.compile(r"(\S+)(\.fast[a,q].*gz)")
+    # search object
+    fastn_search = [re.search(fn_regex, x) for x in os.listdir(datadir)]
 
-    mask1 = list(map(lambda x: bool(fq1_regex.match(x)),
-                     os.listdir(datadir)))
-    fastq1s = [os.path.join(datadir, i) \
-               for i in itertools.compress(os.listdir(datadir),
-                                           mask1)]
-
-    if paired:
-        if sum(mask1):
-            fq2_regex = re.compile('(\S+).(fastq.2.gz)')
-            mask2 = list(map(lambda x: bool(fq2_regex.match(x)),
-                            os.listdir(datadir)))
-            fastq2s = [os.path.join(datadir, i) \
-                    for i in itertools.compress(os.listdir(datadir), mask2)]
-            if sum(mask2):
-                assert sum(mask1) == sum(mask2), 'Not all input files have pairs'
-                fq1_stubs = [fq1_regex.match(x).group(1) for x in fastq1s]
-                fq2_stubs = [fq2_regex.match(x).group(1) for x in fastq2s]
-                assert sorted(fq1_stubs) == sorted(fq2_stubs), \
-                    "First and second read pair files do not correspond"        
+    # build dicionary of paired files
+    fastn_dict = {}
+    for i in fastn_search:
+        curr_fastn = i.groups() # sample name, suffix, end
+        # if already have matched, append file name
+        if curr_fastn[0] in fastn_dict:
+            fastn_dict[curr_fastn[0]].append("".join(curr_fastn))
+        # add file name to dictionary
         else:
-            raise ValueError("No input files detected in run directory."
-                            " Check the file suffixes follow the notation"
-                            " fastq.1.gz and fastq.2.gz.")
-    else:
-        if not sum(mask1):
-            raise ValueError("No input files detected in run directory."
-                              "Check the file suffix is fastq.gz")
-    return fastq1s
+            fastn_dict[curr_fastn[0]] = ["".join(curr_fastn)]
+
+    # getting fastn.1.gz
+    fastn1s = [fastn_dict[x][0] for x in fastn_dict.keys()]
+    fastn2s = []
+    # check if any fastn.1.gz found
+    paired = sum([len(fastn_dict[x]) != 1 for x in fastn_dict.keys()])
+    
+    # if paired, check if all files are paired
+    if paired:
+        # temporary dictionary to store unmatched fastns
+        unmatched = {}
+        for key, fn in fastn_dict.items():
+            for curr_fn in fn:
+                # if paired file found removed from unmatched dictionary
+                if key in unmatched.keys():
+                    unmatched.pop(key)
+                    fastn2s.append(curr_fn)
+                # if haven't found paired file yet, add to in dictionary
+                else: 
+                    unmatched[key] = curr_fn
+        assert not unmatched, "Paired files detected but not all input files \
+            have pairs"
+        
+    assert fastn_dict, (
+        f"No input files detected in {datadir} directory."
+        " Check the file suffixes follow the notation"
+        " fastq.1.gz, fastq.2.gz for paired end reads,"
+        " and fast.gz for single end reads")
+
+    # add path back onto file names
+    fastn1s = [os.path.join(datadir, x) for x in fastn1s]
+    fastn2s = [os.path.join(datadir, x) for x in fastn2s]
+    
+    if out == 'fastn1':
+        return fastn1s
+    elif out == 'fastn2':
+        return fastn2s
+    elif out == 'all' and paired:
+        return fastn1s, fastn2s
+    elif out == 'all' and not paired:
+        return fastn1s, None
 
 def symlnk(inf, outf):
     try:
@@ -51,7 +84,6 @@ def symlnk(inf, outf):
         if e.errno == errno.EEXIST:
             os.remove(outf)
             os.symlink(inf, outf)
-
 
 class BaseTool:
     """
