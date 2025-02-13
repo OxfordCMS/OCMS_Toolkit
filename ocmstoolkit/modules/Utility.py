@@ -203,6 +203,13 @@ class MetaBam:
     '''
     Data class for bam and sam files
     '''
-    def __init__(self, bamfile):
-        self.bamfile = bamfile
-        self.samfile = re.sub("bam$", "sam", bamfile)
+    def __init__(self, infile):
+        if infile.endswith(".bam"):
+            self.bamfile = infile
+            self.samfile = re.sub("bam$", "sam", infile)
+        elif infile.endswith(".sam"):
+            self.samfile = infile
+            self.bamfile = re.sub("sam$", "bam", infile)
+
+        assert infile.endswith(('.bam','.sam')), (
+            "Class MetaBam is only handles .bam and .sam files")
