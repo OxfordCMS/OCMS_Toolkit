@@ -105,21 +105,24 @@ def enaDownload(sentinel, logfile):
 
     P.run(statement, without_cluster = True)
 
-@follows(enaDownload)
-@transform(r"(\S+)/*.gz",
-           regex("\S+\/(.*gz$)"),
+@mkdir('check_sums')
+@transform(enaDownload,
+           regex("(\S+)\/(.*gz).sentinel"),
            r"check_sums/\1.md5")
 def generateMD5(infile, outfile):
-    statement = f"md5sum {infile} > {outfile}"
+    fq = infile.rstrip(r".sentinel")
+    statement = f"md5sum {fq} > {outfile}"
 
     P.run(statement)
 
-def check_report(infile):
-     '''
-     parses the md5 check sums report to see if all downloads passed md5 checks
-     '''
-
-     P.run(f"cat {infile} | grep -v OK > failed_check_sums.txt")
+def check_report():
+    '''
+    parses the md5 check sums report to see if all downloads passed md5 checks
+    '''
+    statement = ("cat check_sums/report.txt |"
+                 " grep -v OK > check_sums/failed_check_sums.txt"
+                 " && cat check_sums/failed_check_sums.txt")
+    P.run(statement, without_cluster=True)
 
 @posttask(check_report)
 @transform(generateMD5,
