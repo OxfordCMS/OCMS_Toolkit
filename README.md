@@ -15,6 +15,8 @@ This will place relevant modules in your path and enable the use of a command li
 
 # OCMS_Toolkit
 ## scripts
+<details>
+<summary>new project</summary>
 ### new_project
 Use this script to initiate a new project on BMRC. `new_project` sets up the relevant directories and symlinks on BMRC in group and/or user directories that conforms to how OCMS works on the BMRC.
 
@@ -24,7 +26,10 @@ ocms_toolkit new_project --project_name=NEW_PROJECT --level=both
 
 `-p` or `--project_name` is the new project name
 `-l` or `--level` is the level at which new projects should be made. Takes `group`, `user`, or `both`. `--level=group` creates the directories in `projects` and `archive`. `l-level=user` creates directories in `devel` and `work`. `--level=both` makes all directories. You may want to set `--level=user` if the project has already been created in `project` and `archive` and you just need the directories in your own user space.
+</details>
 
+<details>
+<summary>rename and link</summary>
 ### rename_and_link
 User this script to sym link files and rename the sym links based ona mapping file. This is helpful for symlinking files that have very long/cumbersome barcodes produced by the sequencer. This is a stripped back version of combine_lanes.py
 
@@ -48,8 +53,11 @@ This script takes five parameters.
     long_barcode1    clean_id1
     long_barcode2    clean_id2
 ```
+</details>
 
 ## pipelines
+<details>
+<summary>pipeline subsample</summary>
 ### pipeline_subsample.py
 This script uses seqtk to randomly subsample fastq files (with seed). Script takes in all fastq.*gz in input.dir and subsamples to a specified read depth.
 
@@ -58,3 +66,33 @@ This script uses seqtk to randomly subsample fastq files (with seed). Script tak
 
 #### Requirements
 `module load seqtk/1.4-GCC-12.2.0`
+
+</details>
+
+<details>
+<summary>pipeline fastqc</summary>
+## Fastqc
+
+Fastqc allows you to perform basic QC on a set of fastq files.
+
+### Input files
+
+Fastq files from for example an RNA-seq experiment.
+
+### Running the pipeline
+
+Make sure you have the relevant modules loaded. On BMRC this looks like:
+
+module load Python/3.8.2-GCCcore-9.3.0
+source ~/devel/venv/Python-3.8.2-GCCcore-9.3.0/${MODULE_CPU_TYPE}/bin/activate
+module load FastQC/0.11.9-Java-11
+module load MultiQC/1.9-foss-2020a-Python-3.8.2
+
+Assuming you are in a working directory that has all of your fastq files in you can run the pipeline by typing:
+
+    ocms_rnaseq fastqc config
+    ocms_rnaseq fastqc make full -v5 -p24
+
+This will run fastqx followed by multiQC in order to produce a multiQC report which is found as multiqc_report.html in the working directory.
+
+</details>
