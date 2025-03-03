@@ -57,6 +57,10 @@ Code
 
 from ruffus import *
 import os, sys
+from datetime import datetime
+from pathlib import Path
+import subprocess
+import glob
 from cgatcore import pipeline as P
 from ocmstoolkit.modules import Sra as SRA
 
@@ -64,76 +68,154 @@ PARAMS = P.get_parameters(['pipeline.yml'])
 
 try:
     # parse ena script
-    sra_ftp, sra_fqs = SRA.parse_ena_script(PARAMS['ena_script'])
-    sentinels = []
-    for accession, fqs in sra_fqs.items():
-        # make subdirectories
-        if not os.path.exists(accession):
-            os.mkdir(accession)
-        for fq in fqs:
-            sentinel = f"{accession}/{fq}.sentinel"
-            sentinels.append(sentinel)
+    srr_dict = SRA.parse_ena_script(PARAMS['ena_script'])
+    sentinels = [os.path.join("downloaded.dir", x) for x in srr_dict.keys()]
+        
 except (IOError, FileNotFoundError):
     pass
 
-@originate(sentinels, 'sra_download.log')
-def enaDownload(sentinel, logfile):
+@mkdir("downloaded.dir")
+@originate(sentinels, 'README.md')
+def enaDownload(sentinel, readme):
     '''
     parse ENA download script and download each in a seperate job.
     Jobs are not sent to cluster as download requires internet access.
+    At the same time, produces a README.md to document the data download
     '''
     
-    # initialize log file
-    open(logfile, 'w').close()
-    accession = os.path.dirname(sentinel)
+    # initialize readme
+    with open(readme, 'w') as f_readme:
+        date = datetime.today().strftime('%Y-%m-%d')
+        msg = [f"BioProject: {PARAMS['bioproject']}",
+               f"Download pipeline run on: {date}",
+               "Download log:\n"]
+        f_readme.write('\n'.join(msg))
+
 
     # get fastq file names and ftp links
-    fqs = sra_fqs[accession]
-    ftp = sra_ftp[accession]
-
+    key = os.path.basename(sentinel)
+    ftp = srr_dict[key][0]
+    fq = srr_dict[key][1]
+    timestamp = datetime.today().strftime("%Y-%m-%d %X")
     # go into accession subdirectory
-    statements = [f"cd {accession}"]
+    statements = [f"cd downloaded.dir"]
     # wget ftp commands
-    statements.extend(ftp)
+    statements.append(ftp)
     # sentinel file for each fastq file
     statements.append("cd ../")
-    entry = [f"echo 'downloaded {x}' >> {logfile}" for x in fqs]
-    statements.extend(entry)
-    statements.append(f"touch {sentinel}")
+    entry = f"echo '{timestamp}    downloaded {fq}' > {sentinel}"
+    statements.append(entry)
     
     statement = " && ".join(statements)
 
     P.run(statement, without_cluster = True)
 
-@mkdir('check_sums')
+@merge(enaDownload,
+       ".sentinel.updateReadme")
+def updateReadme(sentinels, outfile):
+    '''
+    Update README.md with download message in the sentinel
+    '''
+    for sentinel in sentinels:
+        with (open(sentinel, 'r') as curr_sentinel,
+              open("README.md", 'a') as readme):
+            for line in curr_sentinel:
+                readme.write(line)
+    Path(outfile).touch()
+
+@mkdir('checksums.dir')
 @transform(enaDownload,
-           regex("(\S+)\/(.*gz).sentinel"),
-           r"check_sums/\1.md5")
-def generateMD5(infile, outfile):
-    fq = infile.rstrip(r".sentinel")
-    statement = f"md5sum {fq} > {outfile}"
+           regex("(\S+)\/.sentinel.(.*gz)"),
+           r"checksums.dir/\2.md5")
+def generateMD5(sentinel, md5):
+    '''
+    Generate md5 file for each download
+    '''
+    key = os.path.basename(sentinel)
+    fq = srr_dict[key][1]
+    statement = f"md5sum downloaded.dir/{fq} > {md5}"
 
     P.run(statement)
 
-def check_report():
+def merge_sentinels():
     '''
+    combines all check sums sentinel file into one report and 
     parses the md5 check sums report to see if all downloads passed md5 checks
+    Any downloads that filed the md5 check sum written to 
+    checksums.dir/failed_check_sums.txt
     '''
-    statement = ("cat check_sums/report.txt |"
-                 " grep -v OK > check_sums/failed_check_sums.txt"
-                 " && cat check_sums/failed_check_sums.txt")
-    P.run(statement, without_cluster=True)
+    sentinels = glob.glob("checksums.dir/.sentinel*.md5")
+    with open("checksums.dir/report.txt", 'a') as report:
+        for sentinel in sentinels:
+            with open(sentinel, 'r') as checksum:
+                entry = checksum.readline()
+            report.write(entry)
 
-@posttask(check_report)
+@posttask(merge_sentinels)
 @transform(generateMD5,
-           regex("check_sums/(\S+).md5"),
-           "check_sums/report.txt")
-def verifyMD5(infile, outfile):
-    statement = f"md5sum -c {infile} > {outfile}"
+           regex("checksums.dir/(\S+).md5"),
+           r"checksums.dir/.sentinel.\1.md5")
+def verifyMD5(md5, sentinel):
+    '''
+    Verify md5 sums and write to a checksums sentinel file
+    '''
+    statement = f"md5sum -c {md5} > {sentinel}"
 
     P.run(statement)
+
+def update_readme_md5():
+    '''
+    Updates readme with checksums results. lists out files that failed
+    check sums if applicable.
+    '''
+    # update readme
+    with (open("README.md", 'a') as readme,
+          open("checksums.dir/failed_check_sums.txt", "r") as f_failed):
+        failed = f_failed.readlines()
+
+        if failed:
+            readme_entry = ["failed check sums:\n"]
+            for line in failed:
+                entry = line.split(" ")[0]
+                readme_entry.extend(entry+"\n")
+            readme.write('\n'.join(readme_entry))
+        else:
+            readme.write("all downloads passed md5 check sums")
 
 @follows(verifyMD5)
+@posttask(update_readme_md5)
+@transform("checksums.dir/report.txt",
+           regex(r"checksums\.dir/report\.txt"),
+           "checksums.dir/failed_check_sums.txt")
+def reportCheckSums(report, outfile):
+    
+    with open(outfile, 'w') as failed_check_sums:
+        statement = f"grep -v OK {report}"
+        subprocess.run(statement.split(" "))
+
+@merge(enaDownload, "README.md")
+def cleanUp(sentinels, readme):
+    '''
+    Delete downloaded files and update readme. Does this serially as is a 
+    quick command line operation so not bothering to parallelizing
+    '''
+    fastqs = []
+    for sentinel in sentinels:
+        key = os.path.basename(sentinel)
+        fq = srr_dict[key][1]
+        fastqs.append(fq)
+    timestamp = datetime.today().strftime("%Y-%m-%d %X")
+    
+    statements = []
+    for fq in fastqs:
+        statements.append(f"rm {fq}")
+        statements.append(f"echo {timestamp}    deleting {fq} >> {readme}")
+    
+    statement = " && ".join(statements)
+    
+    P.run(statement)
+
+@follows(reportCheckSums)
 def full():
     pass
 
