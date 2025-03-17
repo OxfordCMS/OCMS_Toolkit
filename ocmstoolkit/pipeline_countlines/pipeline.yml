@@ -1,4 +1,0 @@
-# lines, fastq, or fasta
-type: 'lines'
-job_threads: 1
-job_memory: '15G'
