@@ -2,7 +2,7 @@
 fastq2filteredfastq.py
 =======================
 
-:Author: Nick Ilott
+:Author: Sandi Yen
 :Release: $Id$
 :Date: |today|
 :Tags: Python
@@ -17,11 +17,14 @@ Usage
 
 Example::
 
-   zcat in.fastq.gz | python fastq2filteredfastq.py --bamfile=x.bam --outfile=filtered.fastq
+    ocms_toolkit fastq2filteredfastq --infile=x.fastq.gz --outdir=filtered.dir \
+        --bamfile=x.bam --filter_mapping=unmapped
+    ocms_toolkit fastq2filteredfastq -i x.fastq.1.gz -o filtered.dir -b x.bam \
+        -f mapped --paired
 
 Type::
 
-   python fastq2filteredfastq.py --help
+   ocms_toolkit fastq2filteredfastq --help
 
 for command line help.
 
@@ -226,8 +229,8 @@ def main(argv=None):
     parser = E.ArgumentParser(description = __doc__)
 
     parser.add_argument("-i", "--in_fastq", dest="in_fastq", type=str,
-                        help="Fastq file to filter. Can be file or stdin.\
-                            Should be the fastq used generate bam alignments. \
+                        help="Fastq file to filter. Should be the fastq \
+                            used generate bam alignments. \
                             For paired end reads only provide fastq.1.gz")
     parser.add_argument("-o", "--outdir", dest="outdir", type=str,
                         help="Output directory for bam filtered fastqs"),
