@@ -8,29 +8,25 @@ countlines.py
 Overview
 ========
 
-Use this script to count the number of lines, or sequences in a file.
+Use this script to count the number of lines, or sequences in a file. \
+Count is directed to stdout.
 
 Usage
 -----
 
-The script takes 4 parameters. 
+The script takes 2 parameters. 
 --infile file to be counted. Can be piped into ocmstoolkit countlines or can \
 provide file name to the --infile flag
---outfile optional. name of output file that records name of file (see --fname) \
-and count in tab separated format (fname    count)
 --type determines type of counting. Set to 'lines' to count number of lines, \
 'fasta' to count number of fasta sequences (lines/2), or 'fastq' to count number \
 of fastq sequences (lines/4). defaults to 'lines'. 
---fname only used for logging purposes. the name of the file being counted. \
-If fname is not set and file is piped in, output file will only contain number \
-of lines.
 
 Example::
-    ocms_toolkit countlines --infile=<INFILE> --outfile=<OUTFILE> --type=<TYPE> --fname=<FILENAME>
+    ocms_toolkit countlines --infile=<INFILE> --type=<TYPE>
     ocms_toolkit countlines sample1.fastq.1.gz -t fastq
     ocms_toolkit countlines sample1.fasta.1.gz -t fasta
     ocms_toolkit countlines example.tsv -t lines
-    cat example.tsv | ocms_toolkit countlines -t fastq -f example
+    cat example.tsv | ocms_toolkit countlines -t fastq
     
 
 Type::
