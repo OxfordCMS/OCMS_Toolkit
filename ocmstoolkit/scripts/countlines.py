@@ -49,7 +49,7 @@ import gzip
 
 def main(argv=None):
     """
-    Count the number of lines, or sequences in a file.
+    Count the number of lines, or sequences in a file and returns count in stdout.
     parses command line options in sys.argv, unless *argv* is given.
     """
     
@@ -62,21 +62,12 @@ def main(argv=None):
     parser.add_argument("infile",
                         default=sys.stdin, nargs="?",
                         help="file to count")
-    parser.add_argument("outfile", type=str,
-                        default=None, nargs="?",
-                        help="Output file name for recording count to tab \
-                        seperated file, with file name (suppled to --fname) \
-                        in the first field, and line count in the second field")
     parser.add_argument("-t", "--type", dest="type", type=str, const='lines',
                         nargs='?', choices=['lines','fastq','fasta'], 
                         default='lines', help="type of counting. \
                             'lines' to count lines. \
                             'fastq' to count fastq sequences \
                             'fasta' to count fasta sequences")
-    parser.add_argument("-f", "--fname", dest='fname',nargs="?", 
-                        default=None, type=str,
-                        help="file name or sample name for reporting purposes. \
-                        if empty, output file only contains number of lines")
     
     # unpack commandline arguments
     args = parser.parse_args()
@@ -98,17 +89,6 @@ def main(argv=None):
     
     if args.infile is not sys.stdin:
         infile.close()
-
-    # get output file name
-    if args.fname is None:
-        if args.infile is not sys.stdin:
-            fname = args.infile.split(".")[0]
-        else:
-            fname = None
-    else:
-        fname = args.fname
-    if args.outfile is None:
-        args.outfile = "count.txt"
     
     # if type is fasta or fastq, make sure nlines is an even number
     if args.type == "lines":
@@ -121,9 +101,6 @@ def main(argv=None):
     elif args.type == 'fastq':
         nlines = int(nlines)/4
    
-    if fname:
-        out = "\t".join([fname, str(int(nlines))])
-    else:
-        out = str(int(nlines))
-    with open(args.outfile, 'w') as outfile:
-        outfile.write(out + '\n')
+    # print to stdout
+    out = str(int(nlines))
+    sys.stdout.write(out + "\n")
