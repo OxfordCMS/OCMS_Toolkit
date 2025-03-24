@@ -16,16 +16,20 @@ def main(argv=None):
 
     path = os.path.join(os.path.abspath(os.path.dirname(__file__)))
     paths = [path, os.path.abspath(__file__)[:-3]]
+    paths.append(os.path.join(path, "scripts"))
     
     if len(argv) == 1 or argv[1] == "--help" or argv[1] == "-h":
         print((globals()["__doc__"]))
 
     command = argv[1]
-    
-    if command in ["new_project", "rename_and_link"]:
+    pipeline = f"pipeline_{command}"
+    if not os.path.exists(os.path.join(path, pipeline + ".py")):
         pipeline = command
-    else:
-        pipeline = "pipeline_{}".format(command)
+        
+    #if command in ["new_project", "rename_and_link"]:
+    #    pipeline = command
+    #else:
+    #    pipeline = "pipeline_{}".format(command)
     
     # remove 'ocms_toolkit' from sys.argv
     del sys.argv[0]
