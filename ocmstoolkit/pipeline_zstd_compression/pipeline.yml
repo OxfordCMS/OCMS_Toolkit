@@ -1,0 +1,6 @@
+# set compression level
+compression_lvl: 22
+
+job_threads: 8
+
+job_memory: 1G
