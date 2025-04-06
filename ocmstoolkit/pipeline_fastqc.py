@@ -64,6 +64,7 @@ import re
 import shutil
 import sqlite3
 import glob
+import pandas as pd
 
 # import modules from the cgat code collection
 import cgatcore.experiment as E
@@ -123,18 +124,16 @@ def build_report(infiles, outfile):
     '''build report'''
     statement = '''multiqc . -s'''
     P.run(statement)
+
 @follows(build_report)
-@split("multiqc_data/multiqc_fastqc.txt", "multiqc_data/failed_qc_metrics/*.txt"
-)
+@split("multiqc_data/multiqc_fastqc.txt", "multiqc_data/failed_qc_metrics/*.txt")
 def find_failed_samples(infile, outfiles):
-    '''Identify samples that failed specific QC metrics and generate separate fi
-les for each metric.'''
+    '''Identify samples that failed specific QC metrics and generate separate files for each metric.'''
 
     # Read the MultiQC FastQC summary file
     df = pd.read_csv(infile, sep="\t")
 
-    # List of QC metric columns — adjust index range if your MultiQC version cha
-nges
+    # List of QC metric columns — adjust index range if your MultiQC version changes
     qc_metrics = df.columns[12:23]
 
     output_dir = "multiqc_data/failed_qc_metrics"
@@ -143,16 +142,14 @@ nges
     output_files=[]
 
     for metric in qc_metrics:
-        failed_samples = df[df[metric].str.contains("fail", case=False, na=False
-)]["Sample"]
+        failed_samples = df[df[metric].str.contains("fail", case=False, na=False)]["Sample"]
         if not failed_samples.empty:
             output_file = os.path.join(output_dir, f"failed_{metric}.txt")
             failed_samples.to_csv(output_file, index=False, header=False)
             output_files.append(output_file)
     return output_files
 
-@merge(find_failed_samples, "multiqc_data/failed_qc_metrics/failed_combined_samp
-les.txt")
+@merge(find_failed_samples, "multiqc_data/failed_qc_metrics/failed_combined_samples.txt")
 def combine_failed_samples(infiles, outfile):
     '''Combine all failed samples across QC metrics and remove duplicates.'''
 
@@ -166,8 +163,7 @@ def combine_failed_samples(infiles, outfile):
             continue
         with open(infile, "r") as f:
             for line in f:
-                all_failed_samples.add(line.strip())  # Add to set to avoid dupl
-icates
+                all_failed_samples.add(line.strip())  # Add to set to avoid duplicates
 
     # Write the unique samples to the output file
     with open(outfile, "w") as f_out:
@@ -195,20 +191,17 @@ def rerun_failed_multiqc(infile, outfile):
     # Locate the FastQC directories for these samples in fastqc.dir
     failed_dirs = []
     for sample in sample_names:
-        dir_path = os.path.join("fastqc.dir", sample + ".fastqc")  # Fix: append
- `.fastqc` to directory name
+        dir_path = os.path.join("fastqc.dir", sample + ".fastqc")  # Fix: append `.fastqc` to directory name
         print(f"Checking directory: {dir_path}")  # Debugging statement
         if os.path.exists(dir_path):
             failed_dirs.append(dir_path)
         else:
-            print(f"Directory does not exist: {dir_path}")  # Debugging statemen
-t
+            print(f"Directory does not exist: {dir_path}")  # Debugging statement
 
     # Ensure there are directories to run MultiQC
     if failed_dirs:
         # Define the output directory inside `failed_qc_metrics`
-        output_dir = os.path.join("multiqc_data", "failed_qc_metrics", "multiqc_
-failed.dir")
+        output_dir = os.path.join("multiqc_data", "failed_qc_metrics", "multiqc_failed.dir")
         os.makedirs(output_dir, exist_ok=True)
 
         # Run MultiQC on the failed sample directories
@@ -217,6 +210,7 @@ failed.dir")
         P.run(statement)
     else:
         raise RuntimeError("No valid FastQC directories found for the failed samples.")
+
 @follows(rerun_failed_multiqc)
 def full():
     '''Final target.'''
