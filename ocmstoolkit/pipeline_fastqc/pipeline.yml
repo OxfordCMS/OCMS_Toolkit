@@ -1,4 +1,4 @@
 
 # set resources for running multiqc
 job_threads: 1
-job_memory: 150G
+job_memory: 20G
