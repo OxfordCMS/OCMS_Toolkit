@@ -1,4 +1,4 @@
-'''
+"""
 zstd_compression.py
 ====================
 
@@ -29,7 +29,7 @@ ocms_toolkit zstd_compression config
 
 Input files
 -----------
-Input files should be gunzipped (.gz) files 
+Input files should be gunzipped (.gz) files located in input.dir
 
 
 Requirements
@@ -39,6 +39,7 @@ module load zstd/1.5.5-GCCcore-12.3.0
 Pipeline output
 ===============
 compressed.dir containing zstd compressed files.
+md5_sum.dir containing record of the md5sum before and after ztsd compression.
 
 
 Glossary
@@ -50,14 +51,12 @@ Glossary
 Code
 ====
 
-'''
+"""
 
 import sys
-import os
 import re
-import glob
 from pathlib import Path
-from ruffus import *
+from ruffus import follows, mkdir, transform, regex
 from cgatcore import pipeline as P 
 
 # get all gunzip files within directory to process
@@ -66,25 +65,15 @@ FILES_REGEX = regex(r"input.dir/(\S+)\.*gz")
 
 PARAMS = P.get_parameters(['pipeline.yml'])
 
-######################################################
-######################################################
-######################################################
-# compress .gz files using a specified level of compression
-
-# produces a compressed.dir which contains
-# zstd compressed files
-######################################################
-######################################################
-######################################################
-
-
 ###############################################################################
 # Create md5sums for each input file
 ###############################################################################
 @follows(mkdir("01_input_md5sum.dir"))
-@transform(FILES, 
-         FILES_REGEX,
-         r"01_input_md5sum.dir/\1_md5sum.txt")
+@transform(
+    FILES, 
+    FILES_REGEX,
+    r"01_input_md5sum.dir/\1_md5sum.txt"
+)
 
 def input_md5sum(infile, outfile):
     """Return md5sum for input files"""
@@ -98,10 +87,11 @@ def input_md5sum(infile, outfile):
 
     statement = f"gzip -dk {infile} | md5sum > {outfile}"
 
-    P.run(statement,
-          # md5sum can't be multi-threaded
-          job_threads = 1,
-          job_memory = 15G)
+    P.run(
+        statement,
+        job_threads=PARAMS["md5sum_job_threads"],
+        job_memory=PARAMS["md5sum_job_memory"]
+    )
 
 ###############################################################################
 # Re-compress input using zstd
@@ -119,8 +109,8 @@ def zstd_compress(infile, outfile):
 
     # subsample file with seed
     fq = re.sub("\\.gz$", "", outfile)
-    statement = '''seqtk sample -s100 %(infile)s %(depth)s > %(fq)s &&
-                   gzip %(fq)s'''
+    statement = """seqtk sample -s100 %(infile)s %(depth)s > %(fq)s &&
+                   gzip %(fq)s"""
     P.run(statement,
           job_threads = PARAMS['job_threads'],
           job_memory = PARAMS['job_memory'])
@@ -138,8 +128,8 @@ def check_md5sum(infile, outfile):
 
     # subsample file with seed
     fq = re.sub("\\.gz$", "", outfile)
-    statement = '''seqtk sample -s100 %(infile)s %(depth)s > %(fq)s &&
-                   gzip %(fq)s'''
+    statement = """seqtk sample -s100 %(infile)s %(depth)s > %(fq)s &&
+                   gzip %(fq)s"""
     P.run(statement,
           job_threads = PARAMS['job_threads'],
           job_memory = PARAMS['job_memory'])

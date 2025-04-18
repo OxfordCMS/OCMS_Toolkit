@@ -1,6 +1,12 @@
-# set compression level
-compression_lvl: 22
+# set options for md5sum
+md5sum:
+  job_threads: 1
+  job_memory: 15G
 
-job_threads: 8
 
-job_memory: 1G
+# set options for zstd
+zstd:
+  job_threads: 8
+  job_memory: 1G
+  # set compression level
+ compression_lvl: 22
