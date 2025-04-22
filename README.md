@@ -58,3 +58,12 @@ This script uses seqtk to randomly subsample fastq files (with seed). Script tak
 
 #### Requirements
 `module load seqtk/1.4-GCC-12.2.0`
+
+### pipeline_zstd_compression.py
+This script uses zstd to compress gunzipped files to achieve higher levels of compression. Script takes in all .*gz files in input.dir to extract and recompress them using zstd.
+
+#### Configuration
+`ocms_toolkit zstd_compression config`
+
+#### Requirements
+`module load zstd/1.5.5-GCCcore-12.3.0`
