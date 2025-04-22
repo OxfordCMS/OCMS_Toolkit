@@ -83,9 +83,10 @@ def input_md5sum(infile, outfile):
 
     # create statment for running md5sum
     statement = (
-        "gzip"
+        "zstd"
         " --decompress"
         " --keep"
+        " --stdout"
         f" {infile}"
         f" | md5sum > {outfile}"
     )
@@ -96,7 +97,6 @@ def input_md5sum(infile, outfile):
         job_threads=PARAMS["md5sum_job_threads"],
         job_memory=PARAMS["md5sum_job_memory"],
     )
-
 
 ###############################################################################
 # Extract and re-compress input using zstd
