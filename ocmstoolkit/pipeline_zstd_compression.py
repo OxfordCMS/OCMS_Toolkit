@@ -63,8 +63,8 @@ from ruffus import follows, mkdir, transform, regex
 from cgatcore import pipeline as P 
 
 # get all gunzip files within directory to process
-FILES = ("input.dir/.*gz")
-FILES_REGEX = regex(r"input.dir/(\S+)\.*gz")
+FILES = ("input.dir/*.gz")
+FILES_REGEX = regex(r".*input\.dir\/(\S+)\.gz")
 
 PARAMS = P.get_parameters(["pipeline.yml"])
 
@@ -75,69 +75,31 @@ PARAMS = P.get_parameters(["pipeline.yml"])
 @transform(
     FILES, 
     FILES_REGEX,
-    r"01_input_md5sum.dir/\1_md5sum.txt"
+    r"01_input_md5sum.dir/\1.md5sum.txt"
 )
 
 def input_md5sum(infile, outfile):
-    """Return md5sum for input files"""
+    """Return md5sum for uncompressed input files"""
 
-    print(f"infile: {infile}")      # infile: input.dir/samples_pooled_corrected.megahit.contigs.fasta
-    print(f"outfile: {outfile}")    # outfile: prokka_output.dir/samples_pooled_corrected.megahit/
+    # create statment for running md5sum
+    statement = (
+        "gzip"
+        " --decompress"
+        " --keep"
+        f" {infile}"
+        f" | md5sum > {outfile}"
+    )
 
-    # capture sample id from output dir name
-    sample_id = re.sub("01_input_md5sum.dir/", "", outfile)   # Sample ID: samples_pooled_corrected.megahit/
-    print(f"Sample ID: {sample_id}")
-
-    statement = f"gzip -dk {infile} | md5sum > {outfile}"
-
+    # create script for slurm job submission
     P.run(
         statement,
         job_threads=PARAMS["md5sum_job_threads"],
-        job_memory=PARAMS["md5sum_job_memory"]
+        job_memory=PARAMS["md5sum_job_memory"],
     )
 
-###############################################################################
-# Re-compress input using zstd
-###############################################################################
-@follows(mkdir("02_compressed.dir"))
-@transform(FILES, 
-         FILES_REGEX,
-         r"02_compressed.dir/\1.gz")
 
-def zstd_compress(infile, outfile):
-    """Uncompress .gz files using gunzip"""
 
-    # define level of compression
-    compression_lvl = PARAMS['compression_lvl']
-
-    # subsample file with seed
-    fq = re.sub("\\.gz$", "", outfile)
-    statement = """seqtk sample -s100 %(infile)s %(depth)s > %(fq)s &&
-                   gzip %(fq)s"""
-    P.run(statement,
-          job_threads = PARAMS['job_threads'],
-          job_memory = PARAMS['job_memory'])
-    
-###############################################################################
-# Check md5sums for new zstd compressed files
-###############################################################################
-@follows(zstd_compress)
-def check_md5sum(infile, outfile):
-    """Expects input files to be gunzipped (.gz)
-    """
-
-    # define level of compression
-    compression_lvl = PARAMS['compression_lvl']
-
-    # subsample file with seed
-    fq = re.sub("\\.gz$", "", outfile)
-    statement = """seqtk sample -s100 %(infile)s %(depth)s > %(fq)s &&
-                   gzip %(fq)s"""
-    P.run(statement,
-          job_threads = PARAMS['job_threads'],
-          job_memory = PARAMS['job_memory'])
-
-@follows(check_md5sum)
+@follows(input_md5sum)
 def full():
     pass
 
@@ -149,3 +111,4 @@ def main(argv=None):
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv))
+
