@@ -98,8 +98,61 @@ def input_md5sum(infile, outfile):
     )
 
 
+###############################################################################
+# Re-compress input using zstd
+###############################################################################
+@follows(mkdir("02_compressed.dir"))
+@transform(
+    FILES, 
+    FILES_REGEX,
+    r"02_compressed.dir/\1.zst"
+)
 
-@follows(input_md5sum)
+def zstd_compress(infile, outfile):
+    """Uncompress .gz files using gzip and then re-compress files using zstd"""
+
+    # define level of compression
+    compression_lvl = PARAMS['zstd_compression_lvl']
+
+    threads = PARAMS['zstd_job_threads']
+
+    if compression_lvl >= 20 and compression_lvl <= 22 :
+        # create statment for running zstd using ultra compression
+        statement = (
+            "zcat"
+            f" {infile}"
+            " | zstd"
+            " --compress"
+            f" -{compression_lvl}"
+            " --ultra"
+            f" --threads={threads}"
+            f" -o {outfile}"
+        )
+    elif compression_lvl > 0 and compression_lvl <= 19 : 
+         # create statment for running zstd not using ultra compression
+        statement = (
+            "zcat"
+            f" {infile}"
+            " | zstd"
+            " --compress"
+            f" -{compression_lvl}"
+            f" --threads={threads}"
+            f" -o {outfile}"
+        )
+    else :
+        # raise an error if invalid compression level entred
+        print(f"ERROR: Invalid compression_lvl defined in pipeline.yml: {compression_lvl}")
+        assert PARAMS['zstd_compression_lvl'] == 0 or PARAMS['zstd_compression_lvl'] > 22, \
+            "Exception occurred: Invalid compression_lvl entered in pipeline.yml, must be between 1 - 22"        
+    
+    # create script for slurm job submission
+    P.run(statement,
+          job_threads = PARAMS['zstd_job_threads'],
+          job_memory = PARAMS['zstd_job_memory'])
+    
+
+
+@follows(zstd_compress)
 def full():
     pass
 
