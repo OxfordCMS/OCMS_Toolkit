@@ -9,14 +9,16 @@ Overview
 ========
 
 This script uses zstd to compress gunzipped files into zstandard compressed files.
-zstd has been shown to achive higher fastq compression than gzip: http://www.bioinformaticszen.com/post/use-zstd-for-raw-fastq/
+zstd has been shown to achive higher fastq compression than gzip:
+http://www.bioinformaticszen.com/post/use-zstd-for-raw-fastq/
 documentation: https://manpages.debian.org/testing/zstd/zstd.1.en.html
 
 
 Usage
 =====
 
-Script takes in all *.gz files in input.dir, and uncompresses and re-compresses the file using zstd to obtain a better compression ratio
+Script takes in all *.gz files in input.dir, and uncompresses and re-compresses 
+the file using zstd to obtain a better compression ratio.
 
 Example::
 
@@ -38,8 +40,9 @@ module load zstd/1.5.5-GCCcore-12.3.0
 
 Pipeline output
 ===============
-compressed.dir containing zstd compressed files.
-md5_sum.dir containing record of the md5sum before and after ztsd compression.
+01_input_md5sum.dir contains record of gunzipped prior to extraction.
+02_compressed.dir contains zstd compressed files.
+03_output_md5sum.dir contains record of gunzipped file after extraction from zstd
 
 
 Glossary
@@ -63,7 +66,7 @@ from cgatcore import pipeline as P
 FILES = ("input.dir/.*gz")
 FILES_REGEX = regex(r"input.dir/(\S+)\.*gz")
 
-PARAMS = P.get_parameters(['pipeline.yml'])
+PARAMS = P.get_parameters(["pipeline.yml"])
 
 ###############################################################################
 # Create md5sums for each input file
