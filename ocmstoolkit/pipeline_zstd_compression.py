@@ -64,18 +64,18 @@ from cgatcore import pipeline as P
 
 # get all gunzip files within directory to process
 FILES = ("input.dir/*.gz")
-FILES_REGEX = regex(r".*input\.dir\/(\S+)\.gz")
+FILES_REGEX = regex(r"input\.dir\/(\S+)\.gz")
 
 PARAMS = P.get_parameters(["pipeline.yml"])
 
 ###############################################################################
-# Create md5sums for each input file
+# Create md5sums for uncompressed input files
 ###############################################################################
 @follows(mkdir("01_input_md5sum.dir"))
 @transform(
     FILES, 
     FILES_REGEX,
-    r"01_input_md5sum.dir/\1.md5sum.txt"
+    r"01_input_md5sum.dir/\1.md5"
 )
 
 def input_md5sum(infile, outfile):
@@ -99,9 +99,9 @@ def input_md5sum(infile, outfile):
 
 
 ###############################################################################
-# Re-compress input using zstd
+# Extract and re-compress input using zstd
 ###############################################################################
-@follows(mkdir("02_compressed.dir"))
+@follows(input_md5sum, mkdir("02_compressed.dir"))
 @transform(
     FILES, 
     FILES_REGEX,
@@ -150,9 +150,46 @@ def zstd_compress(infile, outfile):
           job_threads = PARAMS['zstd_job_threads'],
           job_memory = PARAMS['zstd_job_memory'])
     
+###############################################################################
+# Check md5sums for uncompressed output files
+###############################################################################
+@follows(zstd_compress, mkdir("03_check_md5sum.dir"))
+@transform(
+    "02_compressed.dir/*.zst", 
+    regex(r"02_compressed\.dir\/(\S+)\.zst"),
+    r"03_check_md5sum.dir/\1.md5sum.out"
+)
+
+def check_md5sum(infile, outfile):
+    """Uncompress .zstd file and perform md5sum checksum to check if it is the 
+    same as the original uncompressed input files"""
+
+    # capture filename from infile
+    md5sum_file = re.search(r"02_compressed\.dir\/(\S+)\.zst", infile).group(1)
+
+    # create md5sum filename
+    md5sum_file = f"{md5sum_file}.md5sum.out"
+
+    # create statment for extracting md5sum
+    statement = (
+        "zstd"
+        " --decompress"
+        " --keep"
+        " --stdout"
+        f" {infile}"
+        " | md5sum -c md5sum_file -"
+        f" > {outfile}"
+    )
+
+    # create script for slurm job submission
+    P.run(
+        statement,
+        job_threads=PARAMS["md5sum_job_threads"],
+        job_memory=PARAMS["md5sum_job_memory"],
+    )
 
 
-@follows(zstd_compress)
+@follows(check_md5sum)
 def full():
     pass
 
