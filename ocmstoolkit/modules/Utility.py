@@ -182,8 +182,8 @@ class MetaFastn:
                 f" '.{self.fileformat}.1.gz'")
             self.fn1_suffix = f".{self.fileformat}.1.gz"
             self.fn2_suffix = f'.{self.fileformat}.2.gz'
-        if self.fastn3 is not None:
-            self.fn3_suffix = f'.{self.fileformat}.3.gz'
+            if self.fastn3 is not None:
+                self.fn3_suffix = f'.{self.fileformat}.3.gz'
         else:
             assert self.fastn1.endswith(f".{self.fileformat}.gz"), (
                 "Single-end fastq files must be in notation "
