@@ -192,15 +192,23 @@ class MetaFastn:
 
 class MetaBam:
     '''
-    Data class for bam and sam files
+    Data class for bam and sam files. 
+    Handles filenames for when converting between cram, bam, and sam files.
+    **Does not perform the actual conversion itself**
     '''
     def __init__(self, infile):
         if infile.endswith(".bam"):
             self.bamfile = infile
             self.samfile = re.sub("bam$", "sam", infile)
+            self.cramfile = re.sub("bam$", "cram", infile)
         elif infile.endswith(".sam"):
             self.samfile = infile
             self.bamfile = re.sub("sam$", "bam", infile)
+            self.cramfile = re.sub("sam$", "cram", infile)
+        elif infile.endswith(".cram"):
+            self.cramfile = infile
+            self.bamfile = re.sub("cram$", "bam", infile)
+            self.samfile = re.sub("cram$", "sam", infile)
 
-        assert infile.endswith(('.bam','.sam')), (
-            "Class MetaBam is only handles .bam and .sam files")
+        assert infile.endswith(('.bam','.sam','.cram')), (
+            "Class MetaBam is only handles .bam, .sam, and .cram files")
