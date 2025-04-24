@@ -41,7 +41,7 @@ def get_fastns(datadir='.', *args: int):
         " fastq.1.gz, fastq.2.gz for paired end reads,"
         " and fastq.gz for single end reads")
 
-    # build dicionary of fastn1, 2, 3 files
+    # build list of fastn1, 2, 3 files
     fastn1s = []
     fastn2s = []
     fastn3s = []
@@ -49,11 +49,11 @@ def get_fastns(datadir='.', *args: int):
         prefix, format, suffix = i.groups() # sample name, suffix, end
         # detect end
         if suffix == ".1.gz":
-            fastn1s.append(i)
+            fastn1s.append(i.group(0))
         elif suffix == '.2.gz':
-            fastn2s.append(i)
+            fastn2s.append(i.group(0))
         elif suffix == '.3.gz':
-            fastn3s.append(i)
+            fastn3s.append(i.group(0))
     
     # add path back onto file names
     fastn1s = [os.path.join(datadir, x) for x in fastn1s]
@@ -182,6 +182,7 @@ class MetaFastn:
                 f" '.{self.fileformat}.1.gz'")
             self.fn1_suffix = f".{self.fileformat}.1.gz"
             self.fn2_suffix = f'.{self.fileformat}.2.gz'
+        if self.fastn3 is not None:
             self.fn3_suffix = f'.{self.fileformat}.3.gz'
         else:
             assert self.fastn1.endswith(f".{self.fileformat}.gz"), (
