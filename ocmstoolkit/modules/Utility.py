@@ -111,6 +111,7 @@ class MetaFastn:
         self.prefixstrip = None
         self.prefix = None
         self.fileformat = None
+        self.has_singleton = None
         self.head = []
 
         '''check file can be opened on init & capture header 
@@ -144,6 +145,10 @@ class MetaFastn:
                 f"cannot find read 2 file at location {paired_name}"
                 f" associated with read 1 file {self.fastn1}")
             self.fastn2 = paired_name
+            # fastn3 is defined if data is paired, regardless of whether or
+            # or not singletons actually exist - this is because a fastn3 file
+            # is created automatically in pipelines even if there are no singletons
+            self.fastn3 = self.fastn1.replace(".1",".3")
 
     '''check for singletons'''
     def hasSingleton(self):
@@ -151,7 +156,10 @@ class MetaFastn:
         if os.path.exists(fq3_name):
             # check file is not empty
             if os.stat(fq3_name).st_size != 0:
-                self.fastn3 = fq3_name
+                self.has_singleton = True
+            else:
+                self.has_singleton = False
+
 
     '''check it is fasta or fastq and if compressed'''    
     def getFormat(self):
@@ -182,8 +190,8 @@ class MetaFastn:
                 f" '.{self.fileformat}.1.gz'")
             self.fn1_suffix = f".{self.fileformat}.1.gz"
             self.fn2_suffix = f'.{self.fileformat}.2.gz'
-            if self.fastn3 is not None:
-                self.fn3_suffix = f'.{self.fileformat}.3.gz'
+            # define fn3_suffix regardless if file exists
+            self.fn3_suffix = f'.{self.fileformat}.3.gz'
         else:
             assert self.fastn1.endswith(f".{self.fileformat}.gz"), (
                 "Single-end fastq files must be in notation "
