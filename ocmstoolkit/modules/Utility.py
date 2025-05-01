@@ -127,16 +127,16 @@ class MetaFastn:
         '''autocheck file format and pairedness, 
            read count must be specified seperately
         '''
-        self.isPaired()
-        self.hasSingleton()
-        self.getFormat()
-        self.getSuffix()
+        self.is_paired()
+        self.find_singleton()
+        self.get_format()
+        self.get_suffix()
         if self.prefixstrip is None:
             self.prefix = os.path.basename(self.fastn1.rstrip(self.fn1_suffix))
         else:
             self.prefix = os.path.basename(self.fastn1.rstrip(self.prefixstrip))
 
-    def isPaired(self):
+    def is_paired(self):
         '''check if paired
         '''
         if self.fastn1.endswith(".1.gz"):
@@ -151,7 +151,7 @@ class MetaFastn:
             self.fastn3 = self.fastn1.replace(".1",".3")
 
     '''check for singletons'''
-    def hasSingleton(self):
+    def find_singleton(self):
         fq3_name = self.fastn1.replace(".1",".3")
         if os.path.exists(fq3_name):
             # check file is not empty
@@ -162,7 +162,7 @@ class MetaFastn:
 
 
     '''check it is fasta or fastq and if compressed'''    
-    def getFormat(self):
+    def get_format(self):
         extensions=("fasta","fastq")
         for i in extensions:    
             if self.fastn1.endswith((i+".1.gz",i+".gz")):
@@ -181,7 +181,7 @@ class MetaFastn:
                 "invalid header on first line for fastq format")
             
     '''get fastq1 file suffix '''
-    def getSuffix(self):
+    def get_suffix(self):
         # set suffix
         # if self.fastq1.endswith(".fastq.1.gz"):
         if self.fastn2 is not None:
