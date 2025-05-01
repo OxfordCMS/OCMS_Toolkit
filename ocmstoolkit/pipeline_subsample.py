@@ -58,10 +58,11 @@ from ruffus import *
 from cgatcore import pipeline as P 
 
 # get all sequence files within directory to process
-SEQUENCEFILES = ("input.dir/*fastq.*gz")
-SEQUENCEFILES_REGEX = regex(r"input.dir/(\S+)\.(fastq.*gz)")
-
 PARAMS = P.get_parameters(['pipeline.yml'])
+indir = PARAMS.get("general_input.dir", "input.dir")
+SEQUENCEFILES = (f"{indir}/*fastq.*gz")
+SEQUENCEFILES_REGEX = regex(fr"{input.dir}/(\S+)\.(fastq.*gz)")
+
 
 ######################################################
 ######################################################
@@ -84,14 +85,14 @@ def subsample_fastq(infile, outfile):
        in format fastq.1.gz, fastq.2.gz
     """
 
-    depth = PARAMS['depth']
+    depth = PARAMS['seqtk_depth']
     # subsample file with seed
     fq = re.sub("\\.gz$", "", outfile)
     statement = '''seqtk sample -s100 %(infile)s %(depth)s > %(fq)s &&
                    gzip %(fq)s'''
     P.run(statement,
-          job_threads = PARAMS['job_threads'],
-          job_memory = PARAMS['job_memory'])
+          job_threads = PARAMS['seqtk_job_threads'],
+          job_memory = PARAMS['seqtk_job_memory'])
 
 @follows(subsample_fastq)
 def full():
