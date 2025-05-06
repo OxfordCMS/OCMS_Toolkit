@@ -61,7 +61,7 @@ from cgatcore import pipeline as P
 PARAMS = P.get_parameters(['pipeline.yml'])
 indir = PARAMS.get("general_input.dir", "input.dir")
 SEQUENCEFILES = (f"{indir}/*fastq.*gz")
-SEQUENCEFILES_REGEX = regex(fr"{input.dir}/(\S+)\.(fastq.*gz)")
+SEQUENCEFILES_REGEX = regex(fr"{indir}/(\S+)\.(fastq.*gz)")
 
 
 ######################################################
