@@ -1,3 +1,4 @@
+[![DOI](https://zenodo.org/badge/276910883.svg)](https://doi.org/10.5281/zenodo.15017011)
 # About OCMS_Toolkit
 OCMS_Toolkit is a repository of scripts useful for bioinformatics work at OCMS.
 
