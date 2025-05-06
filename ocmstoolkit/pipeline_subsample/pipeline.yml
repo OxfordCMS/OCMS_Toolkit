@@ -1,3 +1,7 @@
-depth: 1000
-job_threads: 1
-job_memory: 15G
+general:
+  input.dir: 'input.dir'
+  
+seqtk:
+  depth: 1000
+  job_threads: 1
+  job_memory: 15G
