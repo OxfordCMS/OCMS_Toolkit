@@ -2,7 +2,7 @@
 .ipynb*
 dist/
 ocms_toolkit.egg-info/
-ocmstoolkit/__init__.py
 build/
 */__pycache__
 *.pyc
+__pycache__
