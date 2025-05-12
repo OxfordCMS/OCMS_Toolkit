@@ -24,10 +24,11 @@ def get_fastns(datadir='.', *args: int):
     args_set = set(args)
 
     # valid sets of fastns
-    valid_sets = [{1}, {1,2}, {1,2,3}]
+    valid_sets = [ {0}, {1}, {1,2}, {1,2,3}]
     assert args_set in valid_sets, (
-        "specify fastns to return as 1; 1,2; or 1,2,3."
-        " i.e. get_fastns(datadir='.', 1,2) for paired end reads"
+        "specify fastns to return as 0; 1; 1,2; or 1,2,3."
+        " i.e. get_fastns(datadir='.', 1,2) for paired end reads;"
+        " i.e. get_fastns(datadir='.', 0) for single end reads"
     )
 
     # look for all fastn.1.gz, fastn.2.gz, fastn.gz
@@ -42,13 +43,16 @@ def get_fastns(datadir='.', *args: int):
         " and fastq.gz for single end reads")
 
     # build list of fastn1, 2, 3 files
+    fastn0s = []
     fastn1s = []
     fastn2s = []
     fastn3s = []
     for i in fastn_search:
         prefix, format, suffix = i.groups() # sample name, suffix, end
         # detect end
-        if suffix == ".1.gz":
+        if suffix == ".gz":
+            fastn0s.append(i.group(0))
+        elif suffix == ".1.gz":
             fastn1s.append(i.group(0))
         elif suffix == '.2.gz':
             fastn2s.append(i.group(0))
@@ -56,11 +60,14 @@ def get_fastns(datadir='.', *args: int):
             fastn3s.append(i.group(0))
     
     # add path back onto file names
+    fastn0s = [os.path.join(datadir, x) for x in fastn0s]
     fastn1s = [os.path.join(datadir, x) for x in fastn1s]
     fastn2s = [os.path.join(datadir, x) for x in fastn2s]
     fastn3s = [os.path.join(datadir, x) for x in fastn3s]
 
-    if args_set == {1}:
+    if args_set == {0}:
+        return fastn0s
+    elif args_set == {1}:
         return fastn1s
     elif args_set == {1,2}:
         return fastn1s, fastn2s
