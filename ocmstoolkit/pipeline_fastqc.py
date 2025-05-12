@@ -123,7 +123,9 @@ def runFastQC(infile, outfile, seq_regex=SEQUENCEFILES_REGEX):
 def build_report(infiles, outfile):
     '''build report'''
     statement = '''multiqc . -s'''
-    P.run(statement)
+    P.run(statement,
+          job_threads = PARAMS['job_threads'],
+          job_memory = PARAMS['job_memory'])
 
 @follows(build_report)
 def full():
