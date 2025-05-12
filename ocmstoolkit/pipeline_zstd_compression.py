@@ -40,9 +40,9 @@ module load zstd/1.5.5-GCCcore-12.3.0
 
 Pipeline output
 ===============
-01_input_md5sum.dir contains record of gunzipped prior to extraction.
-02_compressed.dir contains zstd compressed files.
-03_output_md5sum.dir contains record of gunzipped file after extraction from zstd
+01_input_md5sum.dir contains md5sum hash of uncompressed .gz files
+02_compressed.dir contains zstd compressed (.zst) files 
+03_check_md5sum.dir contains stdout of md5sum check using uncompressed .zst files
 
 
 Glossary
@@ -79,7 +79,14 @@ PARAMS = P.get_parameters(["pipeline.yml"])
 )
 
 def input_md5sum(infile, outfile):
-    """Return md5sum for uncompressed input files"""
+    """Return md5sum for uncompressed input files, and then reformats md5sum 
+    file contain uncompressed file name"""
+
+    # capture uncompressed filename from infile
+    file_name = re.search(r"input\.dir\/(\S+)\.gz", infile).group(1)
+
+    # correct format for md5sum: <md5sum_checksum><space><space><file_name>
+    file_name = f"  {file_name}"
 
     # create statment for running md5sum
     statement = (
@@ -88,7 +95,9 @@ def input_md5sum(infile, outfile):
         " --keep"
         " --stdout"
         f" {infile}"
-        f" | md5sum > {outfile}"
+        " | md5sum"
+        f" | sed 's/[[:blank:]]*-/{file_name}/g'"
+        f" > {outfile}"
     )
 
     # create script for slurm job submission
@@ -97,6 +106,7 @@ def input_md5sum(infile, outfile):
         job_threads=PARAMS["md5sum_job_threads"],
         job_memory=PARAMS["md5sum_job_memory"],
     )
+
 
 ###############################################################################
 # Extract and re-compress input using zstd
@@ -150,6 +160,7 @@ def zstd_compress(infile, outfile):
           job_threads = PARAMS['zstd_job_threads'],
           job_memory = PARAMS['zstd_job_memory'])
     
+
 ###############################################################################
 # Check md5sums for uncompressed output files
 ###############################################################################
@@ -168,7 +179,7 @@ def check_md5sum(infile, outfile):
     md5sum_file = re.search(r"02_compressed\.dir\/(\S+)\.zst", infile).group(1)
 
     # create md5sum filename
-    md5sum_file = f"{md5sum_file}.md5sum.out"
+    md5sum_file = f"01_input_md5sum.dir/{md5sum_file}.md5"
 
     # create statment for extracting md5sum
     statement = (
@@ -177,7 +188,8 @@ def check_md5sum(infile, outfile):
         " --keep"
         " --stdout"
         f" {infile}"
-        " | md5sum -c md5sum_file -"
+        " | md5sum"
+        f" -c {md5sum_file}"
         f" > {outfile}"
     )
 
