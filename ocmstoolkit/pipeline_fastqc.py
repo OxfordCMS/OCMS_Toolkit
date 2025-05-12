@@ -81,10 +81,11 @@ P.initialize()
 # formats
 
 PARAMS = P.get_parameters(['pipeline.yml'])
+indir = PARAMS.get("general_input.dir", "input.dir")
+SEQUENCEFILES = (f"{indir}/*fastq.*gz")
 
 # optional group agnostic to paired end or single end reads
-SEQUENCEFILES = ["*.fastq.*gz"]
-SEQUENCEFILES_REGEX = r"(\S+)(\.fastq)(\.[1-2])?.gz"
+SEQUENCEFILES_REGEX = fr"{indir}/(\S+)(\.fastq)(\.[1-2])?.gz"
 
 @follows(mkdir("fastqc.dir"))
 @transform(SEQUENCEFILES,
