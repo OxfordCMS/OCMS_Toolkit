@@ -8,6 +8,10 @@ datadir = os.path.join(datadir, "fastqs")
 
 class TestGetFastns(TestCase):
 
+    def test_fastn0s(self):
+        fastns = Utility.get_fastns(datadir, 0)
+        self.assertEqual(fastns[0], os.path.join(datadir, "test.fastq.gz"))
+
     def test_fastn1s(self):
         fastns = Utility.get_fastns(datadir, 1)
         self.assertEqual(fastns[0], os.path.join(datadir, "test.fastq.1.gz"))
