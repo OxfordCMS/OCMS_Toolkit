@@ -86,6 +86,7 @@ jobs:
           new_tag="v$major.$minor.$patch"
           echo "New tag: $new_tag"
           echo "new_tag=$new_tag" >> "$GITHUB_OUTPUT"
+          
       - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
@@ -95,15 +96,22 @@ jobs:
       - name: Set SSH remote
         run: |
           git remote set-url origin git@github.com:${{ github.repository }}.git
-      - name: Write VERSION file
-        run: echo "${{ steps.bump_version.outputs.new_tag }}" > VERSION
-      - name: Commit and push VERSION file
+          
+      - name: Update version in setup.py
+        run: |
+          new_version=${{ steps.bump_version.outputs.new_tag }}
+          clean_version="${new_version#v}"  # Remove the "v" prefix
+          echo "Updating setup.py to version $clean_version"
+          sed -i -E "s/version\s*=\s*['\"][0-9]+\.[0-9]+\.[0-9]+['\"]/version=\"$clean_version\"/" setup.py
+
+      - name: Commit and push setup.py file
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add VERSION
-          git commit -m "chore: update VERSION to ${{ steps.bump_version.outputs.new_tag }}" || echo "No changes to commit"
+          git add setup.py
+          git commit -m "chore: update setup.py to ${{ steps.bump_version.outputs.new_tag }}" || echo "No changes to commit"
           git push origin main
+
       - name: Push tag
         run: |
           git config user.name "github-actions[bot]"
