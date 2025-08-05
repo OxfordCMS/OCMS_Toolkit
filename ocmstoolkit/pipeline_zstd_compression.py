@@ -57,6 +57,7 @@ Code
 """
 
 import sys
+import os
 import re
 from pathlib import Path
 from ruffus import follows, mkdir, transform, regex, collate
@@ -201,7 +202,7 @@ def check_md5sum(infile, outfile):
     )
 
 ###############################################################################
-# Creates a list of all samples with correct md5sum check
+# Creates a list of all samples with successfull or failed md5sum checks
 ###############################################################################
 @follows(check_md5sum)
 @collate(
@@ -226,7 +227,9 @@ def list_md5_checks(infiles, outfile):
         sample_id = re.search(r"03_check_md5sum\.dir\/(\S+)\.md5sum.out", infile).group(1)
 
         # read in outcome of md5sum check
-        md5sum_check = infile.read_text()
+        md5sum_check = open(os.path.abspath(infile),"r")
+
+        md5sum_check = md5sum_check.read()
 
         if "OK" in md5sum_check :
             # add sample id to a list containing all successful md5sum checkss
@@ -242,6 +245,7 @@ def list_md5_checks(infiles, outfile):
         # Write the data to the file
         output.write(success)
 
+    # if any samples failed the md5sum check, save them as a list
     if len(fail) > 0 :
         # create file name for list of failed md5sum checks
         outfile2 = re.sub("successfull", "failed", outfile)
