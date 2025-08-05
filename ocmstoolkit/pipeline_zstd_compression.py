@@ -79,14 +79,13 @@ PARAMS = P.get_parameters(["pipeline.yml"])
 )
 
 def input_md5sum(infile, outfile):
-    """Return md5sum for uncompressed input files, and then reformats md5sum 
-    file contain uncompressed file name"""
+    """Return md5sum for uncompressed input files"""
 
     # capture uncompressed filename from infile
-    file_name = re.search(r"input\.dir\/(\S+)\.gz", infile).group(1)
+    # file_name = re.search(r"input\.dir\/(\S+)\.gz", infile).group(1)
 
     # correct format for md5sum: <md5sum_checksum><space><space><file_name>
-    file_name = f"  {file_name}"
+    # file_name = f"  {file_name}"
 
     # create statment for running md5sum
     statement = (
@@ -96,7 +95,8 @@ def input_md5sum(infile, outfile):
         " --stdout"
         f" {infile}"
         " | md5sum"
-        f" | sed 's/[[:blank:]]*-/{file_name}/g'"
+        # f" | sed 's/[[:blank:]]*-/{file_name}/g'"
+        # creates error when doing md5sum check as file does not exit
         f" > {outfile}"
     )
 
