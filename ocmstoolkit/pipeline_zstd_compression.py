@@ -91,6 +91,7 @@ def input_md5sum(infile, outfile):
     # create statment for running md5sum
     statement = (
         "zstd"
+        " --force"
         " --decompress"
         " --keep"
         " --stdout"
