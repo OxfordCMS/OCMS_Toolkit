@@ -59,7 +59,7 @@ Code
 import sys
 import re
 from pathlib import Path
-from ruffus import follows, mkdir, transform, regex
+from ruffus import follows, mkdir, transform, regex, collate
 from cgatcore import pipeline as P 
 
 # get all gunzip files within directory to process
@@ -200,8 +200,59 @@ def check_md5sum(infile, outfile):
         job_memory=PARAMS["md5sum_job_memory"],
     )
 
-
+###############################################################################
+# Creates a list of all samples with correct md5sum check
+###############################################################################
 @follows(check_md5sum)
+@collate(
+    "03_check_md5sum.dir/*.md5sum.out",
+    regex("03_check_md5sum.dir\/(\S+)\.md5sum.out"),
+    "03_check_md5sum.dir/successfull.md5sum.out",
+)
+
+def list_md5_checks(infiles, outfile):
+    """Creates list of samples where decompressed fastq.gz and decompressed 
+    fastq.zstd files have the same md5sum"""
+
+    # create empty list to store list of samples with successful md5sum checks
+    success = []
+
+    # create empty list to store list of samples with failed md5sum checks
+    fail = []
+
+    for infile in infiles : 
+
+        # capture sample id from infile
+        sample_id = re.search(r"03_check_md5sum\.dir\/(\S+)\.md5sum.out", infile).group(1)
+
+        # read in outcome of md5sum check
+        md5sum_check = infile.read_text()
+
+        if "OK" in md5sum_check :
+            # add sample id to a list containing all successful md5sum checkss
+            success.append(sample_id)
+        else:
+            # add sample id to a list containing all failed md5sum checkss
+            fail.append(sample_id)
+
+    # save file containing samples with successful md5sum checks
+    with open(outfile, 'w') as output:
+        # join the list elements into a single string with a newline character
+        success = '\n'.join(success)
+        # Write the data to the file
+        output.write(success)
+
+    if len(fail) > 0 :
+        # create file name for list of failed md5sum checks
+        outfile2 = re.sub("successfull", "failed", outfile)
+        # save file containing samples with failed md5sum checks
+        with open(outfile2, 'w') as output:
+            # join the list elements into a single string with a newline character
+            fail = '\n'.join(fail)
+            # Write the data to the file
+            output.write(fail)    
+
+@follows(list_md5_checks)
 def full():
     pass
 
