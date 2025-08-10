@@ -7,7 +7,6 @@ md5sum:
 zstd:
   job_threads: 8
   job_memory: 1G
-  # set compression level
+  # set compression level (min 1, max 22)
   compression_lvl: 22
-  # set true or false, if true will delete .gz files within input.dir
-  remove_input_files: false
+  
