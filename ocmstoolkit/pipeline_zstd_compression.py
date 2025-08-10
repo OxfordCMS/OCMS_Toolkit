@@ -236,7 +236,8 @@ def list_md5_checks(infiles, outfile):
         if "OK" in md5sum_check :
             # add sample id to a list containing all successful md5sum checkss
             success.append(sample_id)
-        else:
+
+        elif "FAILED" in md5sum_check :
             # add sample id to a list containing all failed md5sum checkss
             fail.append(sample_id)
 
