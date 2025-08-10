@@ -193,6 +193,7 @@ def check_md5sum(infile, outfile):
         " | md5sum"
         f" -c {md5sum_file}"
         f" > {outfile}"
+        " 2>/dev/null"
     )
 
     # create script for slurm job submission
