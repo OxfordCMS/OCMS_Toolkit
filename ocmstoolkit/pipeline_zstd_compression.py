@@ -259,7 +259,65 @@ def list_md5_checks(infiles, outfile):
             # Write the data to the file
             output.write(fail)    
 
+###############################################################################
+# Check md5sums for uncompressed output files
+###############################################################################
 @follows(list_md5_checks)
+@transform(
+    "02_compressed.dir/*.zst", 
+    regex(r"02_compressed\.dir\/(\S+)"),
+    r"02_compressed.dir/\1.md5"
+)
+
+def zstd_md5sum(infile, outfile):
+    """Generate md5sum for each new compressed file"""
+
+    # create statment for running md5sum
+    statement = (
+        "md5sum"
+        f" {infile}"
+        f" > {outfile}"
+    )
+
+    # create script for slurm job submission
+    P.run(
+        statement,
+        job_threads=PARAMS["md5sum_job_threads"],
+        job_memory=PARAMS["md5sum_job_memory"],
+    )
+
+###############################################################################
+# Check md5sums for new compressed files
+###############################################################################
+@follows(zstd_md5sum)
+@collate(
+    "02_compressed.dir/*.zst.md5",
+    regex(r"02_compressed\.dir\/(\S+)\.zst.md5"),
+    "02_compressed.dir/gzipped_md5sum.out",
+)
+
+
+def check_zstd_md5sum(infiles, outfile):
+    """Check that newly generated md5sums match the newly compressed files"""
+
+    # create statment for extracting md5sum
+    statement = (
+        "md5sum"
+        " -c"
+        f" {' '.join(infiles)}"
+        f" > {outfile}"
+        " 2>/dev/null"
+    )
+
+    # create script for slurm job submission
+    P.run(
+        statement,
+        job_threads=PARAMS["md5sum_job_threads"],
+        job_memory=PARAMS["md5sum_job_memory"],
+    )
+
+###############################################################################
+@follows(check_zstd_md5sum)
 def full():
     pass
 
