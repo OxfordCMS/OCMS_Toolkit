@@ -293,7 +293,7 @@ def zstd_md5sum(infile, outfile):
 @collate(
     "02_compressed.dir/*.zst.md5",
     regex(r"02_compressed\.dir\/(\S+)\.zst.md5"),
-    "02_compressed.dir/gzipped_md5sum.out",
+    "02_compressed.dir/zstd_md5sum.out",
 )
 
 
