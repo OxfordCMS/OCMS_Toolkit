@@ -1,12 +1,12 @@
 # set job options for md5sum
 md5sum:
   job_threads: 1
-  job_memory: 15G
+  job_memory: 1G
 
 # set job options for zstd
 zstd:
   job_threads: 8
-  job_memory: 1G
+  job_memory: 2G
   # set compression level (min 1, max 22)
   compression_lvl: 22
   
