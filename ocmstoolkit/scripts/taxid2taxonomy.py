@@ -27,14 +27,6 @@ If you request taxonomic information for levels below the taxid provided,
 they will be returned as 'unclassified'
 
 
-Accessing a BioSQL db
-+++++++++++++++++++++
-
-This script currently expects a MySQL version of BioSQL. 
-
-NOT YET IMPLEMENTED
-
-
 Usage:
 
 cat taxids | taxid2taxonomy --names-dmp=/path/to/names.dmp --nodes.dmp=/path/to/nodes.dmp
@@ -121,9 +113,12 @@ def fetchBioSQLTaxonomy(ncbi_tax_id,
                         user='guest',
                         passwd='',
                         db='biosql'):
-    '''NOT YET IMPLEMENTED 
-    Fetch the full parent taxonomy (to Kingdom) for
-       a given NCBI tax id number'''
+    '''PLEASE NOTE THIS IS NOT CURRENTLY IMPLEMENTED AS IT REQUIRES A
+    MYSQL IMPLEMENTATION OF THE BIOSQL DATABASE: https://biosql.org/
+    
+    Fetch the full parent taxonomy (to Kingdom) for a given NCBI
+    tax id number
+    '''
 
     phylogeny = collections.OrderedDict()
 
