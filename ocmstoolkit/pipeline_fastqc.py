@@ -64,14 +64,11 @@ import re
 import shutil
 import sqlite3
 import glob
+import ocmstoolkit.modules.Utility as Utility
 
-# import modules from the cgat code collection
 import cgatcore.experiment as E
-#import cgatpipelines.tasks.mapping as mapping
 from cgatcore import pipeline as P
-#import cgatpipelines.tasks.readqc as readqc
-#import cgatpipelines.tasks.preprocess as preprocess
-import cgatcore.iotools as iotools
+from cgatcore import iotools as IOTools
 
 
 # Initialize the pipeline
@@ -81,15 +78,25 @@ P.initialize()
 # formats
 
 PARAMS = P.get_parameters(['pipeline.yml'])
-indir = PARAMS.get("general_input.dir", "input.dir")
-SEQUENCEFILES = (f"{indir}/*fastq.*gz")
+
+try:
+    IOTools.open_file("pipeline.yml")
+except FileNotFoundError as e:
+    indir =  "."
+    FASTQ1s = None
+else:
+    # check that input files correspond
+    indir = PARAMS.get("general_input.dir", "input.dir")
+
+    # check all files to be processed
+    FASTQ1s = Utility.get_fastns(indir)
 
 # optional group agnostic to paired end or single end reads
 SEQUENCEFILES_REGEX = fr"{indir}/(\S+)(\.fastq)(\.[1-2])?.gz"
 
 @follows(mkdir("fastqc.dir"))
-@transform(SEQUENCEFILES,
-           regex(SEQUENCEFILES_REGEX),
+@transform(FASTQ1s,
+           regex(SEQUENCEFILES_REGEX), 
            r"fastqc.dir/\1\3.fastqc")
 def runFastQC(infile, outfile, seq_regex=SEQUENCEFILES_REGEX):
     '''run FastQC on each input file.
@@ -119,6 +126,7 @@ def runFastQC(infile, outfile, seq_regex=SEQUENCEFILES_REGEX):
 
     P.run(statement)
 
+@active_if(FASTQ1s is not None)      
 @merge(runFastQC, "multiqc_report.html")
 def build_report(infiles, outfile):
     '''build report'''
