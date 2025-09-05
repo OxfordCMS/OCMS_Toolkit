@@ -126,7 +126,6 @@ def runFastQC(infile, outfile, seq_regex=SEQUENCEFILES_REGEX):
 
     P.run(statement)
 
-@active_if(FASTQ1s is not None)      
 @merge(runFastQC, "multiqc_report.html")
 def build_report(infiles, outfile):
     '''build report'''
