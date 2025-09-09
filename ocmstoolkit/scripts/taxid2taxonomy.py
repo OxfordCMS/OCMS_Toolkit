@@ -29,7 +29,7 @@ they will be returned as 'unclassified'
 
 Usage:
 
-cat taxids | taxid2taxonomy --names-dmp=/path/to/names.dmp --nodes.dmp=/path/to/nodes.dmp
+cat taxids | ocms_toolkit taxid2taxonomy --names-dmp=/path/to/names.dmp --nodes.dmp=/path/to/nodes.dmp
 
 
 '''
