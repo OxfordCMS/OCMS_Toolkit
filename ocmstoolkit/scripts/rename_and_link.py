@@ -79,7 +79,7 @@ def main(argv=None):
                               " (no file extension)"))
     parser.add_argument("-l", "--log", dest="logfile", type=str,
                         default='read.map',
-                        help="name of log file, default=read.map")
+                        help=("name of log file, default=read.map"))
 
     # unpack commandline arguments
     args = parser.parse_args()
