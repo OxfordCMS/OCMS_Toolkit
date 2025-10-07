@@ -28,5 +28,5 @@ jobs:
 
       - name: Run unit tests
         run: |
-          pytest tests/unit_tests -v --disable-warnings
+          pytest ocmstoolkit/tests/unit_tests -v --disable-warnings
 
