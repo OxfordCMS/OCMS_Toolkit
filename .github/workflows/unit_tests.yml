@@ -24,7 +24,6 @@ jobs:
           pip install --upgrade pip setuptools wheel
           pip install apsw gevent numpy==1.24 pandas paramiko pep8 pytest pytest-pep8 drmaa pyyaml ruffus six sqlalchemy
           pip install cgatcore
-          pip install os
           pip install pytest
 
       - name: Run unit tests
