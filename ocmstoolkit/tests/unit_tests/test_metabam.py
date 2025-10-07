@@ -4,14 +4,14 @@ from ocmstoolkit.modules.Utility import MetaBam
 
 # global datadir
 datadir = os.path.dirname(os.path.abspath(os.path.realpath(__file__)))
-datadir = os.path.join(datadir, "fastqs")
+datadir = os.path.join(os.path.dirname(datadir), "fastqs")
 
 # global filename
 sam = os.path.join(datadir, "test.sam")
 bam = os.path.join(datadir, "test.bam")
 cram = os.path.join(datadir, "test.cram")
 
-class TestMetaFastn(unittest.TestCase):
+class TestMetaBam(unittest.TestCase):
 
     def test_metabam_sam(self):
         mb = MetaBam(sam)

@@ -4,7 +4,7 @@ import os
 
 # global datadir
 datadir = os.path.dirname(os.path.abspath(os.path.realpath(__file__)))
-datadir = os.path.join(datadir, "fastqs")
+datadir = os.path.join(os.path.dirname(datadir), "fastqs")
 
 class TestGetFastns(TestCase):
 

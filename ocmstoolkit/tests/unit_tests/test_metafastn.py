@@ -4,7 +4,7 @@ from ocmstoolkit.modules.Utility import MetaFastn
 
 # global datadir
 datadir = os.path.dirname(os.path.abspath(os.path.realpath(__file__)))
-datadir = os.path.join(datadir, "fastqs")
+datadir = os.path.join(os.path.dirname(datadir), "fastqs")
 
 # global filename
 fastq_pe = os.path.join(datadir, "test.fastq.1.gz")
