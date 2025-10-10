@@ -7,8 +7,7 @@ _______
 This scripts contains methods for retrieving full taxonomic information for one
 or more NCBI taxids. 
 
-Consider using Entez Direct for this: 
-https://www.ncbi.nlm.nih.gov/books/NBK179288/
+Input is one or more newline-separated NCBI taxonomy ID numbers.
 
 Using names.dmp and nodes.dmp
 +++++++++++++++++++++++++++++
@@ -19,9 +18,6 @@ levels will be retrieved from these files.
 
 Please note that there are 44 unique taxonomic ranks specified in nodes.dmp, 
 only generic ranks (see --levels defaults) can be returned using this script. 
-
-If you get 'missing' kingdom, then consider extending the maximum number of 
-recursive lookups allowed (you will have to edit the script for this). 
 
 If you request taxonomic information for levels below the taxid provided, 
 they will be returned as 'unclassified'
@@ -42,7 +38,7 @@ import cgatcore.iotools as iotools
 
 
 limit = 0
-upper_limit=30
+upper_limit=50
 
 def fetchTaxonomy(out_dict, taxid, taxid2scname, taxid2parent, taxid2rank):
     '''Receive a taxid number and return k,p,c,o,g,s for that taxid'''
@@ -113,11 +109,11 @@ def fetchBioSQLTaxonomy(ncbi_tax_id,
                         user='guest',
                         passwd='',
                         db='biosql'):
-    '''PLEASE NOTE THIS IS NOT CURRENTLY IMPLEMENTED AS IT REQUIRES A
-    MYSQL IMPLEMENTATION OF THE BIOSQL DATABASE: https://biosql.org/
-    
+    ''' 
     Fetch the full parent taxonomy (to Kingdom) for a given NCBI
-    tax id number
+    tax id number (Please note this requires a mysql implementation of
+    the BioSQL database: https://biosql.org).
+    
     '''
 
     phylogeny = collections.OrderedDict()
