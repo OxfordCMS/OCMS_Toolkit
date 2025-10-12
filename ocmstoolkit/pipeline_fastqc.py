@@ -89,7 +89,10 @@ else:
     indir = PARAMS.get("general_input.dir", "input.dir")
 
     # check all files to be processed
-    FASTQ1s = Utility.get_fastns(indir)
+    FASTQ1s = Utility.get_fastns(indir,1,2,3)
+
+    # Flatten list of lists -> single list of FASTQ paths
+    FASTQ1s = [fq for sublist in FASTQ1s for fq in sublist]
 
 # optional group agnostic to paired end or single end reads
 SEQUENCEFILES_REGEX = fr"{indir}/(\S+)(\.fastq)(\.[1-2])?.gz"
