@@ -1,3 +1,5 @@
+general:
+input.dir: input.dir
 
 # set resources for running multiqc
 job_threads: 1
