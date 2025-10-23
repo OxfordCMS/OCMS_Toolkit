@@ -12,9 +12,6 @@ on:
           - patch
           - minor
           - major
-  workflow_run:
-    workflows: ["Validate PR Labels"]
-    types: [completed]
 
 permissions:
   contents: write
@@ -26,22 +23,15 @@ env:
 
 jobs:
   bump_and_tag:
-    if: >
-      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
-      || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     env:
-      # set PR branch + head repo from workflow_run payload (available here)
-      PR_BRANCH: ${{ github.event.workflow_run.head_branch }}
-      PR_REPOSITORY: ${{ github.event.workflow_run.head_repository.full_name }}
+      # PR branch info will be determined from github context or defaults to main
+      PR_BRANCH: ${{ github.ref_name }}
     steps:
-      - name: Checkout PR branch (head)
+      - name: Checkout PR branch
         uses: actions/checkout@v4
         with:
-          repository: ${{ github.event.workflow_run.head_repository.full_name }}
-          ref: ${{ github.event.workflow_run.head_branch }}
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Use PAT for pushes if provided
         run: |
@@ -152,7 +142,7 @@ jobs:
             echo "v${maj}.${min}.${pat}"
           }
 
-          branch="${PR_BRANCH:-${{ github.event.workflow_run.head_branch }}}"
+          branch="${PR_BRANCH}"
           candidate="${{ steps.determine.outputs.candidate_tag }}"
           echo "Starting candidate: $candidate"
           while true; do
