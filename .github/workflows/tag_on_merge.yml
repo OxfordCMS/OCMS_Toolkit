@@ -68,10 +68,12 @@ jobs:
         run: |
           latest="${{ steps.get_latest.outputs.latest_tag }}"
           echo "Latest tag: $latest"
+          # Default bump level
           level=""
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
-            level="$INPUT_LEVEL"
+            level="$INPUT_VERSION_LEVEL"
           else
+            echo "Detecting bump level from PR labels: $PR_LABELS"
             if echo "$PR_LABELS" | grep -iq '"name":"major"'; then
               level="major"
             elif echo "$PR_LABELS" | grep -iq '"name":"minor"'; then
@@ -83,9 +85,12 @@ jobs:
 
           IFS='.' read -r major minor patch <<<"${latest#v}"
           case "$level" in
-            major) major=$((major + 1)); minor=0; patch=0 ;;
-            minor) minor=$((minor + 1)); patch=0 ;;
-            *) patch=$((patch + 1)) ;;
+            major)
+               major=$((major + 1)); minor=0; patch=0 ;;
+            minor)
+              minor=$((minor + 1)); patch=0 ;;
+            patch|*)
+              patch=$((patch + 1)) ;;
           esac
 
           candidate="v${major}.${minor}.${patch}"
