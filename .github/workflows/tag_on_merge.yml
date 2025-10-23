@@ -28,11 +28,10 @@ env:
   REPO: ${{ github.repository }}
 
 jobs:
-  bump_and_tag:
-    # run only when triggered by workflow_run (Validate PR Labels). Guarded further below.
+    bump_and_tag:
     if: >
-      github.event_name == 'workflow_run' &&
-      github.event.workflow_run.conclusion == 'success'
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
+      || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     env:
       # set PR branch + head repo from workflow_run payload (available here)

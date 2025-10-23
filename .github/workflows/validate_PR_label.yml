@@ -36,3 +36,29 @@ jobs:
             echo "❌ PR must have exactly one of: patch, minor, or major."
             exit 1
           fi
+
+      - name: Trigger version/tag workflow
+        if: success()   # only run if validation succeeded
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            // workflow file name in this repo
+            const workflow_id = "tag_on_merge.yml";
+            // ref to run the workflow on: use the PR head branch
+            const ref = context.payload.pull_request.head.ref;
+
+            // optional: pass inputs; here we forward nothing or you can pass a version_level input
+            const inputs = {};
+
+            console.log(`Dispatching workflow ${workflow_id} on ref ${ref}`);
+            await github.actions.createWorkflowDispatch({
+              owner,
+              repo,
+              workflow_id,
+              ref,
+              inputs
+            });
+            console.log("Dispatched.");
