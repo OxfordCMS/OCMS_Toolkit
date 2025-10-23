@@ -1,6 +1,8 @@
 name: Bump version in PR & ensure tag points to merge commit
 
 on:
+  repository_dispatch:
+    types: [tag_on_merge]
   workflow_dispatch:
     inputs:
       version_level:
@@ -25,12 +27,14 @@ jobs:
   bump_and_tag:
     runs-on: ubuntu-latest
     env:
-      # PR branch info will be determined from github context or defaults to main
-      PR_BRANCH: ${{ github.ref_name }}
+      # PR branch info from dispatch or use current branch
+      PR_BRANCH: ${{ github.event.client_payload.pr_branch || github.ref_name }}
+      PR_NUMBER: ${{ github.event.client_payload.pr_number || '' }}
     steps:
       - name: Checkout PR branch
         uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.client_payload.pr_branch || github.ref_name }}
           fetch-depth: 0
 
       - name: Use PAT for pushes if provided

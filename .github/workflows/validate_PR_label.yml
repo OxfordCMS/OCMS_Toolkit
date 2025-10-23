@@ -47,19 +47,24 @@ jobs:
           script: |
             const owner = context.repo.owner;
             const repo = context.repo.repo;
-            const workflow_id = "tag_on_merge.yml";
-            const ref = context.payload.pull_request.head.ref;
+            const prNumber = context.payload.pull_request.number;
+            const prBranch = context.payload.pull_request.head.ref;
 
-            console.log(`Triggering workflow ${workflow_id} on branch ${ref}`);
+            console.log(`Dispatching repository event for PR #${prNumber} on branch ${prBranch}`);
+            
             try {
-              await github.rest.actions.createWorkflowDispatch({
-                owner,
-                repo,
-                workflow_id,
-                ref
+              const response = await github.rest.repos.createDispatchEvent({
+                owner: owner,
+                repo: repo,
+                event_type: "tag_on_merge",
+                client_payload: {
+                  pr_number: prNumber,
+                  pr_branch: prBranch
+                }
               });
-              console.log("✅ Workflow dispatched successfully");
+              console.log("✅ Repository dispatch event sent successfully");
             } catch (error) {
-              console.log("Note: Workflow dispatch may not be available for this branch. This is expected for PR branches.");
-              console.log(`Error: ${error.message}`);
+              console.error("❌ Repository dispatch failed");
+              console.error(`Error: ${error.message}`);
+              throw error;
             }
