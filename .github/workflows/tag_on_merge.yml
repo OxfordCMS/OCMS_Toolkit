@@ -14,6 +14,10 @@ on:
           - patch
           - minor
           - major
+  pull_request:
+    types: [closed]
+    branches:
+      - main
 
 permissions:
   contents: write
@@ -25,16 +29,20 @@ env:
 
 jobs:
   bump_and_tag:
+    if: |
+      github.event_name == 'repository_dispatch' ||
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' && github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main')
     runs-on: ubuntu-latest
     env:
-      # PR branch info from dispatch or use current branch
-      PR_BRANCH: ${{ github.event.client_payload.pr_branch || github.ref_name }}
-      PR_NUMBER: ${{ github.event.client_payload.pr_number || '' }}
+      # For repository_dispatch from validate workflow, use client_payload; otherwise use current ref
+      PR_BRANCH: ${{ github.event.client_payload.pr_branch || github.head_ref || github.ref_name }}
+      PR_NUMBER: ${{ github.event.client_payload.pr_number || github.event.pull_request.number || '' }}
     steps:
       - name: Checkout PR branch
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.client_payload.pr_branch || github.ref_name }}
+          ref: ${{ github.event.client_payload.pr_branch || github.head_ref || github.ref_name }}
           fetch-depth: 0
 
       - name: Use PAT for pushes if provided
