@@ -1,44 +1,26 @@
 name: Bump version in PR & ensure tag points to merge commit
 
 on:
-  pull_request:
-    types: [opened, reopened, edited, labeled, unlabeled, synchronize]
-  push:
-    branches:
-      - main
-  workflow_dispatch:
-    inputs:
-      version_level:
-        description: "Manual bump level"
-        required: false
-        default: patch
-        type: choice
-        options:
-          - patch
-          - minor
-          - major
+  workflow_run:
+    workflows: ["validate_PR_label"]
+    types: [completed]
 
 permissions:
   contents: write
 
-env:
-  # Optional: if your org blocks GITHUB_TOKEN writes, set a PAT in secrets.PUSH_TOKEN
-  PUSH_TOKEN: ${{ secrets.PUSH_TOKEN || '' }}
-  REPO: ${{ github.repository }}
-
 jobs:
   bump_and_tag:
-    # only run for PR events (not for push events)
-    if: ${{ github.event_name == 'pull_request' }}
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
-    env:
-      PR_BRANCH: ${{ github.head_ref }}
     steps:
-      - name: Checkout PR branch (head)
+      - name: Checkout PR branch
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.head_ref }}
+          # The triggering workflow passes a `pull_request` in its event payload
+          repository: ${{ github.event.workflow_run.head_repository.full_name }}
+          ref: ${{ github.event.workflow_run.head_branch }}
           fetch-depth: 0
+
 
       - name: Use PAT for pushes if provided
         run: |
