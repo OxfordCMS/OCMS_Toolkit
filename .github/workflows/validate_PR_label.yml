@@ -54,7 +54,7 @@ jobs:
             const inputs = {};
 
             console.log(`Dispatching workflow ${workflow_id} on ref ${ref}`);
-            await github.actions.createWorkflowDispatch({
+            await github.rest.actions.createWorkflowDispatch({
               owner,
               repo,
               workflow_id,
