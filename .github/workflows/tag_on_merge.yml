@@ -4,23 +4,47 @@ on:
   workflow_run:
     workflows: ["Validate PR Labels"]
     types: [completed]
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      version_level:
+        description: "Manual bump level"
+        required: false
+        default: patch
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
 
 permissions:
   contents: write
 
+env:
+  # Optional: if your org blocks GITHUB_TOKEN writes, set a PAT in secrets.PUSH_TOKEN
+  PUSH_TOKEN: ${{ secrets.PUSH_TOKEN || '' }}
+  REPO: ${{ github.repository }}
+
 jobs:
   bump_and_tag:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    # run only when triggered by workflow_run (Validate PR Labels). Guarded further below.
+    if: >
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
+    env:
+      # set PR branch + head repo from workflow_run payload (available here)
+      PR_BRANCH: ${{ github.event.workflow_run.head_branch }}
+      PR_REPOSITORY: ${{ github.event.workflow_run.head_repository.full_name }}
     steps:
-      - name: Checkout PR branch
+      - name: Checkout PR branch (head)
         uses: actions/checkout@v4
         with:
-          # The triggering workflow passes a `pull_request` in its event payload
           repository: ${{ github.event.workflow_run.head_repository.full_name }}
           ref: ${{ github.event.workflow_run.head_branch }}
           fetch-depth: 0
-
 
       - name: Use PAT for pushes if provided
         run: |
@@ -38,47 +62,84 @@ jobs:
         id: get_latest
         run: |
           latest=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          echo "Latest tag: $latest"
           echo "latest_tag=$latest" >> "$GITHUB_OUTPUT"
-          echo "Latest tag: $latest"
 
-      - name: Determine initial bump level and candidate tag
+      - name: Determine bump level and candidate tag (reads labels via REST API)
         id: determine
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const core = require('@actions/core');
+            const github = require('@actions/github');
+
+            // Try to extract PR number from workflow_run payload
+            const wf = github.context.payload.workflow_run || {};
+            let prNumber = undefined;
+            if (wf.pull_requests && wf.pull_requests.length > 0) {
+              prNumber = wf.pull_requests[0].number;
+            }
+            // Fallback if this run was manually dispatched with a PR payload (unlikely)
+            if (!prNumber && github.context.payload.pull_request) {
+              prNumber = github.context.payload.pull_request.number;
+            }
+
+            // Fetch labels for the PR if we have a PR number
+            let labels = [];
+            if (prNumber) {
+              const res = await github.getOctokit(core.getInput('token') || process.env.GITHUB_TOKEN).rest.issues.listLabelsOnIssue({
+                owner: github.context.repo.owner,
+                repo: github.context.repo.repo,
+                issue_number: prNumber
+              });
+              labels = res.data.map(l => l.name.toLowerCase());
+            } else {
+              core.info("No PR number in workflow_run payload; falling back to inputs/env.");
+            }
+
+            // Choose bump level: prefer workflow_dispatch input if present; otherwise detect from labels
+            const eventName = github.context.eventName;
+            const inputLevel = process.env.INPUT_VERSION_LEVEL || '';
+            let level = '';
+            if (eventName === "workflow_dispatch" && inputLevel) {
+              level = inputLevel;
+            } else if (labels.includes('major')) {
+              level = 'major';
+            } else if (labels.includes('minor')) {
+              level = 'minor';
+            } else if (labels.includes('patch')) {
+              level = 'patch';
+            } else {
+              // substring fallback (handles release:major etc)
+              if (labels.some(l => l.includes('major'))) level = 'major';
+              else if (labels.some(l => l.includes('minor'))) level = 'minor';
+              else level = 'patch';
+            }
+
+            core.info(`Determined bump level: ${level} (labels: ${labels.join(',')})`);
+
+            // Get latest tag from env passed in
+            const latest = process.env.LATEST_TAG || 'v0.0.0';
+            let vs = latest.startsWith('v') ? latest.slice(1) : latest;
+            let parts = vs.split('.').map(x => parseInt(x, 10));
+            let [major, minor, patch] = parts;
+            if (isNaN(major)) major = 0;
+            if (isNaN(minor)) minor = 0;
+            if (isNaN(patch)) patch = 0;
+
+            if (level === 'major') { major += 1; minor = 0; patch = 0; }
+            else if (level === 'minor') { minor += 1; patch = 0; }
+            else { patch += 1; }
+
+            const candidate = `v${major}.${minor}.${patch}`;
+            core.setOutput('bump_level', level);
+            core.setOutput('candidate_tag', candidate);
+            core.setOutput('detected_labels', labels.join(','));
+            console.log(`candidate_tag=${candidate}`);
         env:
-          PR_LABELS: ${{ toJson(github.event.pull_request.labels) }}
-          INPUT_LEVEL: ${{ github.event.inputs.version_level }}
-          EVENT_NAME: ${{ github.event_name }}
-        run: |
-          latest="${{ steps.get_latest.outputs.latest_tag }}"
-          echo "Latest tag: $latest"
-          # Default bump level
-          level=""
-          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
-            level="$INPUT_VERSION_LEVEL"
-          else
-            echo "Detecting bump level from PR labels: $PR_LABELS"
-            if echo "$PR_LABELS" | grep -iq '"name":"major"'; then
-              level="major"
-            elif echo "$PR_LABELS" | grep -iq '"name":"minor"'; then
-              level="minor"
-            else
-              level="patch"
-            fi
-          fi
-
-          IFS='.' read -r major minor patch <<<"${latest#v}"
-          case "$level" in
-            major)
-               major=$((major + 1)); minor=0; patch=0 ;;
-            minor)
-              minor=$((minor + 1)); patch=0 ;;
-            patch|*)
-              patch=$((patch + 1)) ;;
-          esac
-
-          candidate="v${major}.${minor}.${patch}"
-          echo "bump_level=$level" >> "$GITHUB_OUTPUT"
-          echo "candidate_tag=$candidate" >> "$GITHUB_OUTPUT"
-          echo "Determined candidate: $candidate"
+          LATEST_TAG: ${{ steps.get_latest.outputs.latest_tag }}
+          INPUT_VERSION_LEVEL: ${{ github.event.inputs.version_level || '' }}
 
       - name: Reserve unique tag by looping & update setup.py to match
         id: reserve_and_push
@@ -94,17 +155,18 @@ jobs:
             echo "v${maj}.${min}.${pat}"
           }
 
-          branch="${PR_BRANCH}"
+          branch="${PR_BRANCH:-${{ github.event.workflow_run.head_branch }}}"
           candidate="${{ steps.determine.outputs.candidate_tag }}"
-
+          echo "Starting candidate: $candidate"
           while true; do
             echo "Checking remote for tag: $candidate"
             git fetch --tags --force
 
-            # check remote for tag existence
+            # Check remote for existence of the candidate tag
             if git ls-remote --tags origin "$candidate" | grep -q "refs/tags/$candidate"; then
               echo "Tag $candidate already exists on remote — incrementing patch and trying again"
               candidate=$(increment_patch "$candidate")
+              echo "New candidate: $candidate"
               continue
             fi
 
@@ -150,7 +212,7 @@ jobs:
           echo "Tag created (provisional at PR commit): ${{ steps.reserve_and_push.outputs.final_tag }}"
 
   repoint_tag_on_push:
-    # only run for push events to main
+    # only run for real pushes to main
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     steps:
