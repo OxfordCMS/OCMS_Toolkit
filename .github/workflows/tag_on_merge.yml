@@ -2,7 +2,7 @@ name: Bump version in PR & ensure tag points to merge commit
 
 on:
   workflow_run:
-    workflows: ["validate_PR_label"]
+    workflows: ["Validate PR Labels"]
     types: [completed]
 
 permissions:
