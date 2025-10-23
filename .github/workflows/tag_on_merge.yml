@@ -1,0 +1,154 @@
+name: Bump version in PR & Tag on merge
+
+on:
+  pull_request:
+    types: [opened, reopened, edited, labeled, unlabeled, synchronize, closed]
+  workflow_dispatch:
+    inputs:
+      version_level:
+        description: "Manual bump level"
+        required: false
+        default: patch
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+permissions:
+  contents: write   # needed to commit to PR branch and to push tags
+
+jobs:
+  bump_in_pr:
+    if: ${{ github.event_name == 'pull_request' && github.event.action != 'closed' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR branch (head)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+
+      - name: Fetch tags
+        run: git fetch --tags --force
+
+      - name: Get latest tag
+        id: get_latest_tag
+        run: |
+          latest_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          echo "latest_tag=$latest_tag" >> "$GITHUB_OUTPUT"
+
+      - name: Determine bump level & new version
+        id: bump
+        env:
+          PR_LABELS: ${{ toJson(github.event.pull_request.labels) }}
+          INPUT_LEVEL: ${{ github.event.inputs.version_level }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          latest=${{ steps.get_latest_tag.outputs.latest_tag }}
+          echo "Latest tag: $latest"
+          level=""
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            level="$INPUT_LEVEL"
+          else
+            if echo "$PR_LABELS" | grep -iq '"name":"major"'; then
+              level="major"
+            elif echo "$PR_LABELS" | grep -iq '"name":"minor"'; then
+              level="minor"
+            else
+              level="patch"
+            fi
+          fi
+
+          echo "Bump level: $level"
+          IFS='.' read -r major minor patch <<<"${latest#v}"
+
+          case "$level" in
+            major) major=$((major + 1)); minor=0; patch=0 ;;
+            minor) minor=$((minor + 1)); patch=0 ;;
+            *) patch=$((patch + 1)) ;;
+          esac
+
+          new_tag="v$major.$minor.$patch"
+          new_version="${new_tag#v}"
+          echo "new_tag=$new_tag" >> "$GITHUB_OUTPUT"
+          echo "new_version=$new_version" >> "$GITHUB_OUTPUT"
+
+      - name: Update version in setup.py
+        run: |
+          new_version=${{ steps.bump.outputs.new_version }}
+          echo "Updating setup.py to version $new_version"
+          sed -i -E "s/version\s*=\s*['\"][0-9]+\.[0-9]+\.[0-9]+['\"]/version=\"$new_version\"/" setup.py
+
+      - name: Commit & push setup.py to PR branch (head)
+        run: |
+          if git diff --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add setup.py
+          git commit -m "chore: bump version to ${{ steps.bump.outputs.new_tag }}" || echo "no commit"
+          git push origin HEAD:${{ github.head_ref }}
+
+  tag_on_merge:
+    if: ${{ github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true }}
+    runs-on: ubuntu-latest
+    needs: bump_in_pr
+    steps:
+      - name: Checkout main (merged commit)
+        uses: actions/checkout@v4
+        with:
+          ref: refs/heads/main
+          fetch-depth: 0
+
+      - name: Read version from setup.py
+        id: read_version
+        run: |
+          ver=$(sed -n -E "s/.*version\s*=\s*['\"]([0-9]+\.[0-9]+\.[0-9]+)['\"].*/\1/p" setup.py || true)
+          if [ -z "$ver" ]; then
+            echo "Failed to read version from setup.py"
+            exit 1
+          fi
+          echo "version=$ver" >> "$GITHUB_OUTPUT"
+          echo "initial_tag=v$ver" >> "$GITHUB_OUTPUT"
+
+      - name: Create & push tag (auto-increment on collision)
+        env:
+          PUSH_TOKEN: ${{ secrets.PUSH_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          # Begin with the tag from setup.py
+          tag="${{ steps.read_version.outputs.initial_tag }}"   # e.g. v1.2.4
+          echo "Starting attempt with tag: $tag"
+
+          # Ensure we have remote tags list
+          git fetch --tags --force
+
+          # Use provided PAT if present, otherwise rely on environment (GITHUB_TOKEN)
+          if [ -n "${PUSH_TOKEN:-}" ]; then
+            echo "Using PUSH_TOKEN for git remote"
+            git remote set-url origin https://x-access-token:${PUSH_TOKEN}@github.com/${{ github.repository }}.git
+          fi
+
+          # If tag exists, increment patch until a free tag is found
+          while git rev-parse --verify --quiet "$tag" >/dev/null; do
+            echo "Tag $tag already exists — incrementing patch..."
+            ver="${tag#v}"
+            IFS='.' read -r major minor patch <<<"$ver"
+            patch=$((patch + 1))
+            tag="v${major}.${minor}.${patch}"
+            echo "Trying tag: $tag"
+            # re-fetch just in case remote changed
+            git fetch --tags --force
+          done
+
+          echo "Creating tag $tag"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "$tag" -m "Release $tag"
+          git push origin "$tag"
+          echo "Pushed tag $tag"
