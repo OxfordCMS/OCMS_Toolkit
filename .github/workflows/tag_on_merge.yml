@@ -15,9 +15,6 @@ on:
   workflow_run:
     workflows: ["Validate PR Labels"]
     types: [completed]
-  push:
-    branches:
-      - main
 
 permissions:
   contents: write
@@ -28,7 +25,7 @@ env:
   REPO: ${{ github.repository }}
 
 jobs:
-    bump_and_tag:
+  bump_and_tag:
     if: >
       (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
       || github.event_name == 'workflow_dispatch'
@@ -44,6 +41,7 @@ jobs:
           repository: ${{ github.event.workflow_run.head_repository.full_name }}
           ref: ${{ github.event.workflow_run.head_branch }}
           fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Use PAT for pushes if provided
         run: |
