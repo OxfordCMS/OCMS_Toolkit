@@ -10,7 +10,7 @@ OCMS_Toolkit can be installed by running the following:
 ```
 git clone https://github.com/OxfordCMS/OCMS_Toolkit
 cd OCMS_Toolkit
-python setup.py install
+pip install .
 ```
 This will place relevant modules in your path and enable the use of a command line interface.
 
