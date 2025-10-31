@@ -118,12 +118,10 @@ class MetaFastn:
         self.prefixstrip = None
         self.prefix = None
         self.fileformat = None
-        self.has_singleton = None
         self.head = []
 
-        '''check file can be opened on init & capture header 
-           (first 5 lines used for interleave and format checks)
-        '''
+        # check file can be opened on init & capture header 
+        # (first 5 lines used for interleave and format checks)  
         try:
             self.openfile = IOTools.open_file(self.fastn1)
         except FileNotFoundError as e:
@@ -131,45 +129,43 @@ class MetaFastn:
             raise Exception(msg) from e
         self.head = [self.openfile.readline().rstrip("\n") for x in range(5)]
 
-        '''autocheck file format and pairedness, 
-           read count must be specified seperately
-        '''
-        self.is_paired()
-        self.find_singleton()
+        # autocheck file format and presence of paired/singleton files
         self.get_format()
         self.get_suffix()
+        self.is_paired()
+        self.has_singletons()
+        
         if self.prefixstrip is None:
             self.prefix = os.path.basename(self.fastn1.rstrip(self.fn1_suffix))
         else:
             self.prefix = os.path.basename(self.fastn1.rstrip(self.prefixstrip))
 
     def is_paired(self):
-        '''check if paired
+        '''check if paired read file exists 
         '''
-        if self.fastn1.endswith(".1.gz"):
-            paired_name = self.fastn1.replace(".1",".2")
-            assert len(glob.glob(paired_name)) > 0, (
-                f"cannot find read 2 file at location {paired_name}"
-                f" associated with read 1 file {self.fastn1}")
+        assert self.fastn1.endswith(self.fn1_suffix)
+        paired_name = self.fastn1.replace(".1", ".2")
+        if os.path.exists(paired_name):
             self.fastn2 = paired_name
-            # fastn3 is defined if data is paired, regardless of whether or
-            # or not singletons actually exist - this is because a fastn3 file
-            # is created automatically in pipelines even if there are no singletons
-            self.fastn3 = self.fastn1.replace(".1",".3")
-
-    '''check for singletons'''
-    def find_singleton(self):
-        fq3_name = self.fastn1.replace(".1",".3")
+            self.fn2_suffix = self.fn1_suffix.replace(".1", ".2")
+        
+    def has_singletons(self):
+        '''check if singleton file exists, but only record if not empty
+        '''
+        assert self.fastn2, "Cannot have singletons without paired reads"
+        singleton_name = self.fastn1.replace(".1",".3")
         if os.path.exists(fq3_name):
             # check file is not empty
-            if os.stat(fq3_name).st_size != 0:
-                self.has_singleton = True
+            if os.stat(singleton_name).st_size != 0:
+                self.fastn3 = singleton_name
+                self.fn3_suffix = self.fn1_suffix.replace(".1", ".2")
             else:
-                self.has_singleton = False
+                self.fastn3 = None
+        else:
+            self.fastn3 = None
 
-
-    '''check it is fasta or fastq and if compressed'''    
     def get_format(self):
+        '''check it is fasta or fastq and if compressed''' 
         extensions=("fasta","fastq")
         for i in extensions:    
             if self.fastn1.endswith((i+".1.gz",i+".gz")):
@@ -187,25 +183,16 @@ class MetaFastn:
             assert self.head[0][0] == "@", (
                 "invalid header on first line for fastq format")
             
-    '''get fastq1 file suffix '''
     def get_suffix(self):
+        ''' get fastq1 file suffix'''
         # set suffix
-        # if self.fastq1.endswith(".fastq.1.gz"):
-        if self.fastn2 is not None:
-            assert self.fastn1.endswith(f".{self.fileformat}.1.gz"), (
-                f"Paired-end {self.fileformat} files must be in notation"
-                f" '.{self.fileformat}.1.gz'")
-            self.fn1_suffix = f".{self.fileformat}.1.gz"
-            self.fn2_suffix = f'.{self.fileformat}.2.gz'
-            # define fn3_suffix regardless if file exists
-            self.fn3_suffix = f'.{self.fileformat}.3.gz'
-        else:
-            assert self.fastn1.endswith(f".{self.fileformat}.gz"), (
-                "Single-end fastq files must be in notation "
-                f"'{self.fileformat}.gz'"
-            )
-            self.fn1_suffix = f".{self.fileformat}.gz"
+        assert self.fastn1.endswith(f".{self.fileformat}.gz"), (
+            "Single-end fastq files must be in notation "
+            f"'{self.fileformat}.gz'"
+        )
+        self.fn1_suffix = f".{self.fileformat}.gz"
 
+        
 class MetaBam:
     '''
     Data class for bam and sam files. 
