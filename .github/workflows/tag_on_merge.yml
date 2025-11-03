@@ -70,7 +70,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const core = require('@actions/core');
+            // const core = require('@actions/core');
             const github = require('@actions/github');
 
             // Try to extract PR number from workflow_run payload
