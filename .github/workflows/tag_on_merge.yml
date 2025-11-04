@@ -69,72 +69,74 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            // const core = require('@actions/core');
-            // const github = require('@actions/github');
+            const core = require('@actions/core');
+            const github = require('@actions/github');
 
-            // Try to extract PR number from workflow_run payload
-            const wf = github.context.payload.workflow_run || {};
-            let prNumber = undefined;
-            if (wf.pull_requests && wf.pull_requests.length > 0) {
-              prNumber = wf.pull_requests[0].number;
-            }
-            // Fallback if this run was manually dispatched with a PR payload (unlikely)
-            if (!prNumber && github.context.payload.pull_request) {
-              prNumber = github.context.payload.pull_request.number;
+            // Extract PR number from payload
+            const prNumber = github.context.payload.client_payload?.pr_number 
+              || github.context.payload.pull_request?.number;
+
+            if (prNumber) {
+              core.info(`Found PR number: ${prNumber}`);
+            } else {
+              core.warning("No PR number found; will use default bump level");
             }
 
             // Fetch labels for the PR if we have a PR number
             let labels = [];
             if (prNumber) {
-              const res = await github.getOctokit(core.getInput('token') || process.env.GITHUB_TOKEN).rest.issues.listLabelsOnIssue({
-                owner: github.context.repo.owner,
-                repo: github.context.repo.repo,
-                issue_number: prNumber
-              });
-              labels = res.data.map(l => l.name.toLowerCase());
-            } else {
-              core.info("No PR number in workflow_run payload; falling back to inputs/env.");
+              try {
+                const res = await github.rest.issues.listLabelsOnIssue({
+                  owner: github.context.repo.owner,
+                  repo: github.context.repo.repo,
+                  issue_number: prNumber
+                });
+                labels = res.data.map(l => l.name.toLowerCase());
+                core.info(`Fetched labels: ${labels.join(', ')}`);
+              } catch (error) {
+                core.warning(`Failed to fetch labels: ${error.message}`);
+              }
             }
 
-            // Choose bump level: prefer workflow_dispatch input if present; otherwise detect from labels
+            // Determine bump level: workflow_dispatch input > labels > default
             const eventName = github.context.eventName;
-            const inputLevel = process.env.INPUT_VERSION_LEVEL || '';
-            let level = '';
+            const inputLevel = process.env.INPUT_VERSION_LEVEL;
+            
+            let level = 'patch'; // default
+            
             if (eventName === "workflow_dispatch" && inputLevel) {
               level = inputLevel;
-            } else if (labels.includes('major')) {
-              level = 'major';
-            } else if (labels.includes('minor')) {
-              level = 'minor';
-            } else if (labels.includes('patch')) {
-              level = 'patch';
+              core.info(`Using workflow_dispatch input: ${level}`);
             } else {
-              // substring fallback (handles release:major etc)
+              // Check for label matches (major > minor > patch)
               if (labels.some(l => l.includes('major'))) level = 'major';
               else if (labels.some(l => l.includes('minor'))) level = 'minor';
-              else level = 'patch';
+              else if (labels.some(l => l.includes('patch'))) level = 'patch';
             }
 
-            core.info(`Determined bump level: ${level} (labels: ${labels.join(',')})`);
+            core.info(`Determined bump level: ${level}`);
 
-            // Get latest tag from env passed in
+            // Parse latest tag and calculate new version
             const latest = process.env.LATEST_TAG || 'v0.0.0';
-            let vs = latest.startsWith('v') ? latest.slice(1) : latest;
-            let parts = vs.split('.').map(x => parseInt(x, 10));
-            let [major, minor, patch] = parts;
-            if (isNaN(major)) major = 0;
-            if (isNaN(minor)) minor = 0;
-            if (isNaN(patch)) patch = 0;
+            const versionStr = latest.replace(/^v/, '');
+            const [major = 0, minor = 0, patch = 0] = versionStr.split('.').map(x => parseInt(x, 10) || 0);
 
-            if (level === 'major') { major += 1; minor = 0; patch = 0; }
-            else if (level === 'minor') { minor += 1; patch = 0; }
-            else { patch += 1; }
+            let newMajor = major, newMinor = minor, newPatch = patch;
+            if (level === 'major') {
+              newMajor += 1;
+              newMinor = 0;
+              newPatch = 0;
+            } else if (level === 'minor') {
+              newMinor += 1;
+              newPatch = 0;
+            } else {
+              newPatch += 1;
+            }
 
-            const candidate = `v${major}.${minor}.${patch}`;
+            const candidate = `v${newMajor}.${newMinor}.${newPatch}`;
             core.setOutput('bump_level', level);
             core.setOutput('candidate_tag', candidate);
             core.setOutput('detected_labels', labels.join(','));
-            console.log(`candidate_tag=${candidate}`);
         env:
           LATEST_TAG: ${{ steps.get_latest.outputs.latest_tag }}
           INPUT_VERSION_LEVEL: ${{ github.event.inputs.version_level || '' }}
