@@ -69,9 +69,8 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const core = require('@actions/core');
-            const github = require('@actions/github');
-
+            // core and github are already available globally in actions/github-script
+            
             // Extract PR number from payload
             const prNumber = github.context.payload.client_payload?.pr_number 
               || github.context.payload.pull_request?.number;
