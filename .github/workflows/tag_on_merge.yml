@@ -28,7 +28,7 @@ env:
 
 jobs:
   bump_and_tag:
-    # Runs for: repository_dispatch (from validate), manual workflow_dispatch, or push to main
+    # Runs for: repository_dispatch (from validate), manual workflow_dispatch
     if: |
       github.event_name == 'repository_dispatch' ||
       github.event_name == 'workflow_dispatch'
@@ -37,6 +37,7 @@ jobs:
       # For repository_dispatch from validate workflow, use client_payload; otherwise use workflow_dispatch input
       PR_BRANCH: ${{ github.event.client_payload.pr_branch || github.ref_name }}
       PR_NUMBER: ${{ github.event.client_payload.pr_number || '' }}
+      IS_PR_DISPATCH: ${{ github.event_name == 'repository_dispatch' }}
     steps:
       - name: Checkout PR branch
         uses: actions/checkout@v4
@@ -69,9 +70,21 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            // Extract PR number from payload
-            const prNumber = context.payload.client_payload?.pr_number 
-              || context.payload.pull_request?.number;
+            // Safe extraction of PR number with null checks
+            let prNumber = undefined;
+            
+            try {
+              // Try to get from repository_dispatch payload
+              if (context?.payload?.client_payload?.pr_number) {
+                prNumber = context.payload.client_payload.pr_number;
+              }
+              // Try to get from pull_request payload
+              else if (context?.payload?.pull_request?.number) {
+                prNumber = context.payload.pull_request.number;
+              }
+            } catch (e) {
+              core.warning(`Error accessing context: ${e.message}`);
+            }
 
             if (prNumber) {
               core.info(`Found PR number: ${prNumber}`);
@@ -97,7 +110,7 @@ jobs:
             }
 
             // Determine bump level: workflow_dispatch input > labels > default
-            const eventName = context.eventName;
+            const eventName = context?.eventName || 'unknown';
             const inputLevel = process.env.INPUT_VERSION_LEVEL;
             
             let level = 'patch'; // default
@@ -105,7 +118,7 @@ jobs:
             if (eventName === "workflow_dispatch" && inputLevel) {
               level = inputLevel;
               core.info(`Using workflow_dispatch input: ${level}`);
-            } else {
+            } else if (labels.length > 0) {
               // Check for label matches (major > minor > patch)
               if (labels.some(l => l.includes('major'))) level = 'major';
               else if (labels.some(l => l.includes('minor'))) level = 'minor';
@@ -156,6 +169,8 @@ jobs:
           branch="${PR_BRANCH}"
           candidate="${{ steps.determine.outputs.candidate_tag }}"
           echo "Starting candidate: $candidate"
+          echo "Is PR dispatch: ${IS_PR_DISPATCH}"
+          
           while true; do
             echo "Checking remote for tag: $candidate"
             git fetch --tags --force
@@ -168,21 +183,26 @@ jobs:
               continue
             fi
 
-            clean="${candidate#v}"
-            echo "Updating setup.py to version $clean"
+            # Only update setup.py if this is a PR dispatch (not manual workflow_dispatch)
+            if [ "${IS_PR_DISPATCH}" = "true" ]; then
+              clean="${candidate#v}"
+              echo "Updating setup.py to version $clean"
 
-            # Replace only the numeric version portion, preserving quotes (matches your setup.py)
-            sed -i -E "s/(version\s*=\s*['\"])[0-9]+\.[0-9]+\.[0-9]+(['\"])/\1$clean\2/" setup.py
+              # Replace only the numeric version portion, preserving quotes (matches your setup.py)
+              sed -i -E "s/(version\s*=\s*['\"])[0-9]+\.[0-9]+\.[0-9]+(['\"])/\1$clean\2/" setup.py
 
-            if git diff --quiet; then
-              echo "No changes to commit (setup.py already at $clean)"
+              if git diff --quiet; then
+                echo "No changes to commit (setup.py already at $clean)"
+              else
+                git config user.name "github-actions[bot]"
+                git config user.email "github-actions[bot]@users.noreply.github.com"
+                git add setup.py
+                git commit -m "chore: bump version to ${candidate}" || true
+                echo "Pushing commit to PR branch ${branch}"
+                git push origin "HEAD:${branch}"
+              fi
             else
-              git config user.name "github-actions[bot]"
-              git config user.email "github-actions[bot]@users.noreply.github.com"
-              git add setup.py
-              git commit -m "chore: bump version to ${candidate}" || true
-              echo "Pushing commit to PR branch ${branch}"
-              git push origin "HEAD:${branch}"
+              echo "Skipping setup.py update (manual workflow_dispatch, not PR dispatch)"
             fi
 
             # create (or recreate) local tag and push
