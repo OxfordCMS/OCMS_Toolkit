@@ -66,82 +66,82 @@ jobs:
 
       - name: Determine bump level and candidate tag (reads labels via REST API)
         id: determine
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            const { execSync } = require('child_process');
-            
-            // Safe extraction of PR number with null checks
-            let prNumber = undefined;
-            
-            if (context?.payload?.client_payload?.pr_number) {
-              prNumber = context.payload.client_payload.pr_number;
-            } else if (context?.payload?.pull_request?.number) {
-              prNumber = context.payload.pull_request.number;
-            }
+        shell: bash
+        run: |
+          set -euo pipefail
+          
+          # Safe extraction of PR number with null checks
+          PR_NUMBER=""
+          
+          if [ -n "${PR_NUMBER_PAYLOAD:-}" ]; then
+            PR_NUMBER="${PR_NUMBER_PAYLOAD}"
+          elif [ -n "${PR_NUMBER_PULL_REQUEST:-}" ]; then
+            PR_NUMBER="${PR_NUMBER_PULL_REQUEST}"
+          fi
 
-            if (prNumber) {
-              core.info(`Found PR number: ${prNumber}`);
-            } else {
-              core.warning("No PR number found; will use default bump level");
-            }
+          if [ -n "$PR_NUMBER" ]; then
+            echo "Found PR number: $PR_NUMBER"
+          else
+            echo "No PR number found; will use default bump level"
+          fi
 
-            // Fetch labels for the PR if we have a PR number
-            let labels = [];
-            if (prNumber) {
-              try {
-                const res = await github.rest.issues.listLabelsOnIssue({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  issue_number: prNumber
-                });
-                labels = res.data.map(l => l.name.toLowerCase());
-                core.info(`Fetched labels: ${labels.join(', ')}`);
-              } catch (error) {
-                core.warning(`Failed to fetch labels: ${error.message}`);
-              }
-            }
+          # Fetch labels for the PR if we have a PR number
+          LABELS=""
+          if [ -n "$PR_NUMBER" ]; then
+            echo "Fetching labels for PR #$PR_NUMBER"
+            LABELS_JSON=$(curl -s \
+              -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${{ github.repository }}/issues/$PR_NUMBER/labels")
+            LABELS=$(echo "$LABELS_JSON" | jq -r '.[].name' | tr '\n' ',' | sed 's/,$//')
+            echo "Fetched labels: $LABELS"
+          fi
 
-            // Determine bump level: workflow_dispatch input > labels > default
-            const eventName = context?.eventName || 'unknown';
-            const inputLevel = process.env.INPUT_VERSION_LEVEL;
-            
-            let level = 'patch'; // default
-            
-            if (eventName === "workflow_dispatch" && inputLevel) {
-              level = inputLevel;
-              core.info(`Using workflow_dispatch input: ${level}`);
-            } else if (labels.length > 0) {
-              // Check for label matches (major > minor > patch)
-              if (labels.some(l => l.includes('major'))) level = 'major';
-              else if (labels.some(l => l.includes('minor'))) level = 'minor';
-              else if (labels.some(l => l.includes('patch'))) level = 'patch';
-            }
+          # Determine bump level: workflow_dispatch input > labels > default
+          LEVEL="patch"
+          
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ github.event.inputs.version_level }}" ]; then
+            LEVEL="${{ github.event.inputs.version_level }}"
+            echo "Using workflow_dispatch input: $LEVEL"
+          elif [ -n "$LABELS" ]; then
+            if echo "$LABELS" | grep -qi "major"; then
+              LEVEL="major"
+            elif echo "$LABELS" | grep -qi "minor"; then
+              LEVEL="minor"
+            elif echo "$LABELS" | grep -qi "patch"; then
+              LEVEL="patch"
+            fi
+          fi
 
-            core.info(`Determined bump level: ${level}`);
+          echo "Determined bump level: $LEVEL"
 
-            // Parse latest tag and calculate new version
-            const latest = process.env.LATEST_TAG || 'v0.0.0';
-            const versionStr = latest.replace(/^v/, '');
-            const [major = 0, minor = 0, patch = 0] = versionStr.split('.').map(x => parseInt(x, 10) || 0);
+          # Parse latest tag and calculate new version
+          LATEST="${{ steps.get_latest.outputs.latest_tag }}"
+          LATEST="${LATEST#v}"
+          IFS='.' read -r MAJOR MINOR PATCH <<<"${LATEST}"
+          MAJOR=${MAJOR:-0}
+          MINOR=${MINOR:-0}
+          PATCH=${PATCH:-0}
 
-            let newMajor = major, newMinor = minor, newPatch = patch;
-            if (level === 'major') {
-              newMajor += 1;
-              newMinor = 0;
-              newPatch = 0;
-            } else if (level === 'minor') {
-              newMinor += 1;
-              newPatch = 0;
-            } else {
-              newPatch += 1;
-            }
+          case "$LEVEL" in
+            major)
+              MAJOR=$((MAJOR + 1))
+              MINOR=0
+              PATCH=0
+              ;;
+            minor)
+              MINOR=$((MINOR + 1))
+              PATCH=0
+              ;;
+            *)
+              PATCH=$((PATCH + 1))
+              ;;
+          esac
 
-            const candidate = `v${newMajor}.${newMinor}.${newPatch}`;
-            core.setOutput('bump_level', level);
-            core.setOutput('candidate_tag', candidate);
-            core.setOutput('detected_labels', labels.join(','));
+          CANDIDATE="v${MAJOR}.${MINOR}.${PATCH}"
+          echo "bump_level=$LEVEL" >> "$GITHUB_OUTPUT"
+          echo "candidate_tag=$CANDIDATE" >> "$GITHUB_OUTPUT"
+          echo "detected_labels=$LABELS" >> "$GITHUB_OUTPUT"
         env:
           LATEST_TAG: ${{ steps.get_latest.outputs.latest_tag }}
           INPUT_VERSION_LEVEL: ${{ github.event.inputs.version_level || '' }}
