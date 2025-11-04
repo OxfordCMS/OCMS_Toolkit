@@ -70,20 +70,15 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
+            const { execSync } = require('child_process');
+            
             // Safe extraction of PR number with null checks
             let prNumber = undefined;
             
-            try {
-              // Try to get from repository_dispatch payload
-              if (context?.payload?.client_payload?.pr_number) {
-                prNumber = context.payload.client_payload.pr_number;
-              }
-              // Try to get from pull_request payload
-              else if (context?.payload?.pull_request?.number) {
-                prNumber = context.payload.pull_request.number;
-              }
-            } catch (e) {
-              core.warning(`Error accessing context: ${e.message}`);
+            if (context?.payload?.client_payload?.pr_number) {
+              prNumber = context.payload.client_payload.pr_number;
+            } else if (context?.payload?.pull_request?.number) {
+              prNumber = context.payload.pull_request.number;
             }
 
             if (prNumber) {
@@ -96,7 +91,6 @@ jobs:
             let labels = [];
             if (prNumber) {
               try {
-                // Use the pre-configured github object from actions/github-script@v7
                 const res = await github.rest.issues.listLabelsOnIssue({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
