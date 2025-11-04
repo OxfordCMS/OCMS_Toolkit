@@ -69,8 +69,6 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            // In actions/github-script, use 'context' directly, not github.context
-            
             // Extract PR number from payload
             const prNumber = context.payload.client_payload?.pr_number 
               || context.payload.pull_request?.number;
@@ -85,7 +83,8 @@ jobs:
             let labels = [];
             if (prNumber) {
               try {
-                const res = await github.rest.issues.listLabelsOnIssue({
+                const octokit = require('@actions/github').getOctokit(process.env.GITHUB_TOKEN);
+                const res = await octokit.rest.issues.listLabelsOnIssue({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
                   issue_number: prNumber
