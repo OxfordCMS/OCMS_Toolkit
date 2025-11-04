@@ -66,18 +66,25 @@ jobs:
 
       - name: Determine bump level and candidate tag (reads labels via REST API)
         id: determine
-        shell: bash
-        run: |
-          set -euo pipefail
-          
-          # Safe extraction of PR number with null checks
-          PR_NUMBER=""
-          
-          if [ -n "${PR_NUMBER_PAYLOAD:-}" ]; then
-            PR_NUMBER="${PR_NUMBER_PAYLOAD}"
-          elif [ -n "${PR_NUMBER_PULL_REQUEST:-}" ]; then
-            PR_NUMBER="${PR_NUMBER_PULL_REQUEST}"
-          fi
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            // Safe extraction of PR number with null checks
+            let prNumber = undefined;
+            
+            try {
+              // Try to get from repository_dispatch payload
+              if (context?.payload?.client_payload?.pr_number) {
+                prNumber = context.payload.client_payload.pr_number;
+              }
+              // Try to get from pull_request payload
+              else if (context?.payload?.pull_request?.number) {
+                prNumber = context.payload.pull_request.number;
+              }
+            } catch (e) {
+              core.warning(`Error accessing context: ${e.message}`);
+            }
 
           if [ -n "$PR_NUMBER" ]; then
             echo "Found PR number: $PR_NUMBER"
@@ -85,17 +92,22 @@ jobs:
             echo "No PR number found; will use default bump level"
           fi
 
-          # Fetch labels for the PR if we have a PR number
-          LABELS=""
-          if [ -n "$PR_NUMBER" ]; then
-            echo "Fetching labels for PR #$PR_NUMBER"
-            LABELS_JSON=$(curl -s \
-              -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-              -H "Accept: application/vnd.github+json" \
-              "https://api.github.com/repos/${{ github.repository }}/issues/$PR_NUMBER/labels")
-            LABELS=$(echo "$LABELS_JSON" | jq -r '.[].name' | tr '\n' ',' | sed 's/,$//')
-            echo "Fetched labels: $LABELS"
-          fi
+            // Fetch labels for the PR if we have a PR number
+            let labels = [];
+            if (prNumber) {
+              try {
+                // Use the pre-configured github object from actions/github-script@v7
+                const res = await github.rest.issues.listLabelsOnIssue({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: prNumber
+                });
+                labels = res.data.map(l => l.name.toLowerCase());
+                core.info(`Fetched labels: ${labels.join(', ')}`);
+              } catch (error) {
+                core.warning(`Failed to fetch labels: ${error.message}`);
+              }
+            }
 
           # Determine bump level: workflow_dispatch input > labels > default
           LEVEL="patch"
