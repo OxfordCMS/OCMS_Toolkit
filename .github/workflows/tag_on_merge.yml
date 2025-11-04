@@ -69,11 +69,11 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            // core and github are already available globally in actions/github-script
+            // In actions/github-script, use 'context' directly, not github.context
             
             // Extract PR number from payload
-            const prNumber = github.context.payload.client_payload?.pr_number 
-              || github.context.payload.pull_request?.number;
+            const prNumber = context.payload.client_payload?.pr_number 
+              || context.payload.pull_request?.number;
 
             if (prNumber) {
               core.info(`Found PR number: ${prNumber}`);
@@ -86,8 +86,8 @@ jobs:
             if (prNumber) {
               try {
                 const res = await github.rest.issues.listLabelsOnIssue({
-                  owner: github.context.repo.owner,
-                  repo: github.context.repo.repo,
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
                   issue_number: prNumber
                 });
                 labels = res.data.map(l => l.name.toLowerCase());
@@ -98,7 +98,7 @@ jobs:
             }
 
             // Determine bump level: workflow_dispatch input > labels > default
-            const eventName = github.context.eventName;
+            const eventName = context.eventName;
             const inputLevel = process.env.INPUT_VERSION_LEVEL;
             
             let level = 'patch'; // default
