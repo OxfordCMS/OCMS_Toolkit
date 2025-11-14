@@ -14,8 +14,7 @@ on:
           - patch
           - minor
           - major
-  pull_request:
-    types: [closed]
+  push:
     branches:
       - main
 
@@ -29,20 +28,21 @@ env:
 
 jobs:
   bump_and_tag:
+    # Runs for: repository_dispatch (from validate), manual workflow_dispatch
     if: |
       github.event_name == 'repository_dispatch' ||
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'pull_request' && github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main')
+      github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     env:
-      # For repository_dispatch from validate workflow, use client_payload; otherwise use current ref
-      PR_BRANCH: ${{ github.event.client_payload.pr_branch || github.head_ref || github.ref_name }}
-      PR_NUMBER: ${{ github.event.client_payload.pr_number || github.event.pull_request.number || '' }}
+      # For repository_dispatch from validate workflow, use client_payload; otherwise use workflow_dispatch input
+      PR_BRANCH: ${{ github.event.client_payload.pr_branch || github.ref_name }}
+      PR_NUMBER: ${{ github.event.client_payload.pr_number || '' }}
+      IS_PR_DISPATCH: ${{ github.event_name == 'repository_dispatch' }}
     steps:
       - name: Checkout PR branch
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.client_payload.pr_branch || github.head_ref || github.ref_name }}
+          ref: ${{ github.event.client_payload.pr_branch || github.ref_name }}
           fetch-depth: 0
 
       - name: Use PAT for pushes if provided
@@ -70,72 +70,90 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            // const core = require('@actions/core');
-            const github = require('@actions/github');
-
-            // Try to extract PR number from workflow_run payload
-            const wf = github.context.payload.workflow_run || {};
+            // Safe extraction of PR number with null checks
             let prNumber = undefined;
-            if (wf.pull_requests && wf.pull_requests.length > 0) {
-              prNumber = wf.pull_requests[0].number;
+            
+            try {
+              // Try to get from repository_dispatch payload
+              if (context?.payload?.client_payload?.pr_number) {
+                prNumber = context.payload.client_payload.pr_number;
+              }
+              // Try to get from pull_request payload
+              else if (context?.payload?.pull_request?.number) {
+                prNumber = context.payload.pull_request.number;
+              }
+            } catch (e) {
+              core.warning(`Error accessing context: ${e.message}`);
             }
-            // Fallback if this run was manually dispatched with a PR payload (unlikely)
-            if (!prNumber && github.context.payload.pull_request) {
-              prNumber = github.context.payload.pull_request.number;
-            }
+
+          if [ -n "$PR_NUMBER" ]; then
+            echo "Found PR number: $PR_NUMBER"
+          else
+            echo "No PR number found; will use default bump level"
+          fi
 
             // Fetch labels for the PR if we have a PR number
             let labels = [];
             if (prNumber) {
-              const res = await github.getOctokit(core.getInput('token') || process.env.GITHUB_TOKEN).rest.issues.listLabelsOnIssue({
-                owner: github.context.repo.owner,
-                repo: github.context.repo.repo,
-                issue_number: prNumber
-              });
-              labels = res.data.map(l => l.name.toLowerCase());
-            } else {
-              core.info("No PR number in workflow_run payload; falling back to inputs/env.");
+              try {
+                const octokit = require('@actions/github').getOctokit(process.env.GITHUB_TOKEN);
+                const res = await octokit.rest.issues.listLabelsOnIssue({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: prNumber
+                });
+                labels = res.data.map(l => l.name.toLowerCase());
+                core.info(`Fetched labels: ${labels.join(', ')}`);
+              } catch (error) {
+                core.warning(`Failed to fetch labels: ${error.message}`);
+              }
             }
 
-            // Choose bump level: prefer workflow_dispatch input if present; otherwise detect from labels
-            const eventName = github.context.eventName;
-            const inputLevel = process.env.INPUT_VERSION_LEVEL || '';
-            let level = '';
-            if (eventName === "workflow_dispatch" && inputLevel) {
-              level = inputLevel;
-            } else if (labels.includes('major')) {
-              level = 'major';
-            } else if (labels.includes('minor')) {
-              level = 'minor';
-            } else if (labels.includes('patch')) {
-              level = 'patch';
-            } else {
-              // substring fallback (handles release:major etc)
-              if (labels.some(l => l.includes('major'))) level = 'major';
-              else if (labels.some(l => l.includes('minor'))) level = 'minor';
-              else level = 'patch';
-            }
+          # Determine bump level: workflow_dispatch input > labels > default
+          LEVEL="patch"
+          
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ github.event.inputs.version_level }}" ]; then
+            LEVEL="${{ github.event.inputs.version_level }}"
+            echo "Using workflow_dispatch input: $LEVEL"
+          elif [ -n "$LABELS" ]; then
+            if echo "$LABELS" | grep -qi "major"; then
+              LEVEL="major"
+            elif echo "$LABELS" | grep -qi "minor"; then
+              LEVEL="minor"
+            elif echo "$LABELS" | grep -qi "patch"; then
+              LEVEL="patch"
+            fi
+          fi
 
-            core.info(`Determined bump level: ${level} (labels: ${labels.join(',')})`);
+          echo "Determined bump level: $LEVEL"
 
-            // Get latest tag from env passed in
-            const latest = process.env.LATEST_TAG || 'v0.0.0';
-            let vs = latest.startsWith('v') ? latest.slice(1) : latest;
-            let parts = vs.split('.').map(x => parseInt(x, 10));
-            let [major, minor, patch] = parts;
-            if (isNaN(major)) major = 0;
-            if (isNaN(minor)) minor = 0;
-            if (isNaN(patch)) patch = 0;
+          # Parse latest tag and calculate new version
+          LATEST="${{ steps.get_latest.outputs.latest_tag }}"
+          LATEST="${LATEST#v}"
+          IFS='.' read -r MAJOR MINOR PATCH <<<"${LATEST}"
+          MAJOR=${MAJOR:-0}
+          MINOR=${MINOR:-0}
+          PATCH=${PATCH:-0}
 
-            if (level === 'major') { major += 1; minor = 0; patch = 0; }
-            else if (level === 'minor') { minor += 1; patch = 0; }
-            else { patch += 1; }
+          case "$LEVEL" in
+            major)
+              MAJOR=$((MAJOR + 1))
+              MINOR=0
+              PATCH=0
+              ;;
+            minor)
+              MINOR=$((MINOR + 1))
+              PATCH=0
+              ;;
+            *)
+              PATCH=$((PATCH + 1))
+              ;;
+          esac
 
-            const candidate = `v${major}.${minor}.${patch}`;
-            core.setOutput('bump_level', level);
-            core.setOutput('candidate_tag', candidate);
-            core.setOutput('detected_labels', labels.join(','));
-            console.log(`candidate_tag=${candidate}`);
+          CANDIDATE="v${MAJOR}.${MINOR}.${PATCH}"
+          echo "bump_level=$LEVEL" >> "$GITHUB_OUTPUT"
+          echo "candidate_tag=$CANDIDATE" >> "$GITHUB_OUTPUT"
+          echo "detected_labels=$LABELS" >> "$GITHUB_OUTPUT"
         env:
           LATEST_TAG: ${{ steps.get_latest.outputs.latest_tag }}
           INPUT_VERSION_LEVEL: ${{ github.event.inputs.version_level || '' }}
@@ -157,6 +175,8 @@ jobs:
           branch="${PR_BRANCH}"
           candidate="${{ steps.determine.outputs.candidate_tag }}"
           echo "Starting candidate: $candidate"
+          echo "Is PR dispatch: ${IS_PR_DISPATCH}"
+          
           while true; do
             echo "Checking remote for tag: $candidate"
             git fetch --tags --force
@@ -169,21 +189,26 @@ jobs:
               continue
             fi
 
-            clean="${candidate#v}"
-            echo "Updating setup.py to version $clean"
+            # Only update setup.py if this is a PR dispatch (not manual workflow_dispatch)
+            if [ "${IS_PR_DISPATCH}" = "true" ]; then
+              clean="${candidate#v}"
+              echo "Updating setup.py to version $clean"
 
-            # Replace only the numeric version portion, preserving quotes (matches your setup.py)
-            sed -i -E "s/(version\s*=\s*['\"])[0-9]+\.[0-9]+\.[0-9]+(['\"])/\1$clean\2/" setup.py
+              # Replace only the numeric version portion, preserving quotes (matches your setup.py)
+              sed -i -E "s/(version\s*=\s*['\"])[0-9]+\.[0-9]+\.[0-9]+(['\"])/\1$clean\2/" setup.py
 
-            if git diff --quiet; then
-              echo "No changes to commit (setup.py already at $clean)"
+              if git diff --quiet; then
+                echo "No changes to commit (setup.py already at $clean)"
+              else
+                git config user.name "github-actions[bot]"
+                git config user.email "github-actions[bot]@users.noreply.github.com"
+                git add setup.py
+                git commit -m "chore: bump version to ${candidate}" || true
+                echo "Pushing commit to PR branch ${branch}"
+                git push origin "HEAD:${branch}"
+              fi
             else
-              git config user.name "github-actions[bot]"
-              git config user.email "github-actions[bot]@users.noreply.github.com"
-              git add setup.py
-              git commit -m "chore: bump version to ${candidate}" || true
-              echo "Pushing commit to PR branch ${branch}"
-              git push origin "HEAD:${branch}"
+              echo "Skipping setup.py update (manual workflow_dispatch, not PR dispatch)"
             fi
 
             # create (or recreate) local tag and push
