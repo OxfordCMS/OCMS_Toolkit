@@ -212,13 +212,11 @@ def rerun_failed_multiqc(infile, outfile):
     fastqc_dirs = []
 
     for sample in failed_samples:
-        # Step 1: remove .gz
+        #remove .gz
         name = sample.replace(".gz", "")
-        # Step 2: remove .fastq
-        name = name.replace(".fastq", "")  
-        # Step 3: convert .1 → _1 and .2 → _2
-        name = name.replace(".1", "_1").replace(".2", "_2")
-        # Step 4: append .fastqc to get directory name
+        #remove .fastq
+        name = name.replace(".fastq", "")
+        # append .fastqc to match directory names
         fastqc_dir = os.path.join("fastqc.dir", name + ".fastqc")
 
         print(f"Checking: {fastqc_dir}")
