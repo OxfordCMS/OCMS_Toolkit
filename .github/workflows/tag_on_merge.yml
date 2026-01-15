@@ -110,8 +110,23 @@ jobs:
             exit 1
           fi
           
-          # Create annotated tag and push to origin
+          # Derive tag name from version
           tag="v$version"
+          
+          # Ensure we know about all remote tags
+          git fetch --tags
+          
+          # If the tag already exists locally or on the remote, skip creating it
+          if git rev-parse "$tag" >/dev/null 2>&1; then
+            echo "Tag $tag already exists locally, skipping tag creation"
+            exit 0
+          fi
+          if git ls-remote --tags origin "$tag" | grep -q "$tag"; then
+            echo "Tag $tag already exists on remote, skipping tag creation"
+            exit 0
+          fi
+          
+          # Create annotated tag and push to origin
           git tag -a "$tag" -m "Release $tag"
           git push origin "$tag"
           echo "✅ Tagged commit with $tag"
