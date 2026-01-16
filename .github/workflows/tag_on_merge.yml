@@ -1,296 +1,132 @@
-name: Bump version in PR & ensure tag points to merge commit
+name: Version & Tag on Merge
 
 on:
-  repository_dispatch:
-    types: [tag_on_merge]
-  workflow_dispatch:
-    inputs:
-      version_level:
-        description: "Manual bump level"
-        required: false
-        default: patch
-        type: choice
-        options:
-          - patch
-          - minor
-          - major
+  pull_request:
+    types: [opened, synchronize, labeled, unlabeled]
   push:
-    branches:
-      - main
+    branches: [main]
 
 permissions:
   contents: write
-
-env:
-  # Optional: if your org blocks GITHUB_TOKEN writes, set a PAT in secrets.PUSH_TOKEN
-  PUSH_TOKEN: ${{ secrets.PUSH_TOKEN || '' }}
-  REPO: ${{ github.repository }}
+  pull-requests: read
 
 jobs:
-  bump_and_tag:
-    # Runs for: repository_dispatch (from validate), manual workflow_dispatch
-    if: |
-      github.event_name == 'repository_dispatch' ||
-      github.event_name == 'workflow_dispatch'
+  # Update setup.py on PR branch (before merge)
+  bump_version_on_pr:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    env:
-      # For repository_dispatch from validate workflow, use client_payload; otherwise use workflow_dispatch input
-      PR_BRANCH: ${{ github.event.client_payload.pr_branch || github.ref_name }}
-      PR_NUMBER: ${{ github.event.client_payload.pr_number || '' }}
-      IS_PR_DISPATCH: ${{ github.event_name == 'repository_dispatch' }}
     steps:
-      - name: Checkout PR branch
-        uses: actions/checkout@v4
+      # Checkout PR branch to make changes before merge
+      - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.client_payload.pr_branch || github.ref_name }}
           fetch-depth: 0
+          ref: ${{ github.head_ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Use PAT for pushes if provided
-        run: |
-          if [ -n "${PUSH_TOKEN}" ]; then
-            echo "Using PUSH_TOKEN for pushes"
-            git remote set-url origin https://x-access-token:${PUSH_TOKEN}@github.com/${REPO}.git
-          else
-            echo "Using default runner auth (GITHUB_TOKEN)"
-          fi
+      # Configure git author for commits
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Fetch tags from origin
-        run: git fetch --tags --force
-
-      - name: Get latest tag
-        id: get_latest
-        run: |
-          latest=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
-          echo "Latest tag: $latest"
-          echo "latest_tag=$latest" >> "$GITHUB_OUTPUT"
-
-      - name: Determine bump level and candidate tag (reads labels via REST API)
-        id: determine
+      # Extract version bump level from PR labels (major, minor, or patch)
+      - name: Get bump level from PR labels
+        id: bump_level
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            // Safe extraction of PR number with null checks
-            let prNumber = undefined;
-            
-            try {
-              // Try to get from repository_dispatch payload
-              if (context?.payload?.client_payload?.pr_number) {
-                prNumber = context.payload.client_payload.pr_number;
-              }
-              // Try to get from pull_request payload
-              else if (context?.payload?.pull_request?.number) {
-                prNumber = context.payload.pull_request.number;
-              }
-            } catch (e) {
-              core.warning(`Error accessing context: ${e.message}`);
-            }
+            const labels = context.payload.pull_request.labels.map(l => l.name.toLowerCase());
+            let level = 'patch'; // default to patch if no label found
+            if (labels.includes('major')) level = 'major';
+            else if (labels.includes('minor')) level = 'minor';
+            core.setOutput('level', level);
+            core.info(`Detected bump level: ${level} (labels: ${labels.join(', ')})`);
 
-          if [ -n "$PR_NUMBER" ]; then
-            echo "Found PR number: $PR_NUMBER"
-          else
-            echo "No PR number found; will use default bump level"
-          fi
+      # Get latest tag and calculate the next version number
+      - name: Calculate next version
+        id: next_version
+        run: |
+          # Fetch latest version tag (v*.*.* format), sorted by semantic version
+          latest=$(git tag -l 'v*.*.*' --sort=-version:refname | head -n 1 || echo "v0.0.0")
+          version=${latest#v}
+          IFS='.' read -r major minor patch <<<"$version"
+          major=${major:-0}
+          minor=${minor:-0}
+          patch=${patch:-0}
 
-            // Fetch labels for the PR if we have a PR number
-            let labels = [];
-            if (prNumber) {
-              try {
-                const octokit = require('@actions/github').getOctokit(process.env.GITHUB_TOKEN);
-                const res = await octokit.rest.issues.listLabelsOnIssue({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  issue_number: prNumber
-                });
-                labels = res.data.map(l => l.name.toLowerCase());
-                core.info(`Fetched labels: ${labels.join(', ')}`);
-              } catch (error) {
-                core.warning(`Failed to fetch labels: ${error.message}`);
-              }
-            }
-
-          # Determine bump level: workflow_dispatch input > labels > default
-          LEVEL="patch"
-          
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ github.event.inputs.version_level }}" ]; then
-            LEVEL="${{ github.event.inputs.version_level }}"
-            echo "Using workflow_dispatch input: $LEVEL"
-          elif [ -n "$LABELS" ]; then
-            if echo "$LABELS" | grep -qi "major"; then
-              LEVEL="major"
-            elif echo "$LABELS" | grep -qi "minor"; then
-              LEVEL="minor"
-            elif echo "$LABELS" | grep -qi "patch"; then
-              LEVEL="patch"
-            fi
-          fi
-
-          echo "Determined bump level: $LEVEL"
-
-          # Parse latest tag and calculate new version
-          LATEST="${{ steps.get_latest.outputs.latest_tag }}"
-          LATEST="${LATEST#v}"
-          IFS='.' read -r MAJOR MINOR PATCH <<<"${LATEST}"
-          MAJOR=${MAJOR:-0}
-          MINOR=${MINOR:-0}
-          PATCH=${PATCH:-0}
-
-          case "$LEVEL" in
-            major)
-              MAJOR=$((MAJOR + 1))
-              MINOR=0
-              PATCH=0
-              ;;
-            minor)
-              MINOR=$((MINOR + 1))
-              PATCH=0
-              ;;
-            *)
-              PATCH=$((PATCH + 1))
-              ;;
+          # Increment version based on bump level
+          level="${{ steps.bump_level.outputs.level }}"
+          case $level in
+            major) major=$((major + 1)); minor=0; patch=0 ;;
+            minor) minor=$((minor + 1)); patch=0 ;;
+            *) patch=$((patch + 1)) ;;
           esac
 
-          CANDIDATE="v${MAJOR}.${MINOR}.${PATCH}"
-          echo "bump_level=$LEVEL" >> "$GITHUB_OUTPUT"
-          echo "candidate_tag=$CANDIDATE" >> "$GITHUB_OUTPUT"
-          echo "detected_labels=$LABELS" >> "$GITHUB_OUTPUT"
-        env:
-          LATEST_TAG: ${{ steps.get_latest.outputs.latest_tag }}
-          INPUT_VERSION_LEVEL: ${{ github.event.inputs.version_level || '' }}
+          next_version="$major.$minor.$patch"
+          echo "version=$next_version" >> "$GITHUB_OUTPUT"
+          echo "New version: $next_version"
 
-      - name: Reserve unique tag by looping & update setup.py to match
-        id: reserve_and_push
-        shell: bash
+      # Update setup.py with calculated version and push to PR branch
+      # Only commits if version differs from current to avoid duplicate bumps on label changes
+      - name: Update setup.py and commit to PR branch
         run: |
-          set -euo pipefail
-
-          increment_patch() {
-            v="$1"
-            v="${v#v}"
-            IFS='.' read -r maj min pat <<<"$v"
-            pat=$((pat + 1))
-            echo "v${maj}.${min}.${pat}"
-          }
-
-          branch="${PR_BRANCH}"
-          candidate="${{ steps.determine.outputs.candidate_tag }}"
-          echo "Starting candidate: $candidate"
-          echo "Is PR dispatch: ${IS_PR_DISPATCH}"
+          new_version="${{ steps.next_version.outputs.version }}"
+          current_version=$(sed -n 's/.*version="\([^"]*\)".*/\1/p' setup.py)
           
-          while true; do
-            echo "Checking remote for tag: $candidate"
-            git fetch --tags --force
+          # Skip commit if version is already correct (prevents duplicate bumps on label changes)
+          if [ "$current_version" = "$new_version" ]; then
+            echo "Version already at $new_version, skipping commit"
+            exit 0
+          fi
+          
+          # Update version in setup.py
+          sed -i "s/version=\"[^\"]*\"/version=\"$new_version\"/" setup.py
+          git add setup.py
+          git commit -m "chore: bump version to $new_version"
+          git push origin HEAD:${{ github.head_ref }}
 
-            # Check remote for existence of the candidate tag
-            if git ls-remote --tags origin "$candidate" | grep -q "refs/tags/$candidate"; then
-              echo "Tag $candidate already exists on remote — incrementing patch and trying again"
-              candidate=$(increment_patch "$candidate")
-              echo "New candidate: $candidate"
-              continue
-            fi
-
-            # Only update setup.py if this is a PR dispatch (not manual workflow_dispatch)
-            if [ "${IS_PR_DISPATCH}" = "true" ]; then
-              clean="${candidate#v}"
-              echo "Updating setup.py to version $clean"
-
-              # Replace only the numeric version portion, preserving quotes (matches your setup.py)
-              sed -i -E "s/(version\s*=\s*['\"])[0-9]+\.[0-9]+\.[0-9]+(['\"])/\1$clean\2/" setup.py
-
-              if git diff --quiet; then
-                echo "No changes to commit (setup.py already at $clean)"
-              else
-                git config user.name "github-actions[bot]"
-                git config user.email "github-actions[bot]@users.noreply.github.com"
-                git add setup.py
-                git commit -m "chore: bump version to ${candidate}" || true
-                echo "Pushing commit to PR branch ${branch}"
-                git push origin "HEAD:${branch}"
-              fi
-            else
-              echo "Skipping setup.py update (manual workflow_dispatch, not PR dispatch)"
-            fi
-
-            # create (or recreate) local tag and push
-            if git rev-parse --verify --quiet "$candidate" >/dev/null; then
-              git tag -d "$candidate" || true
-            fi
-            git tag -a "$candidate" -m "Release $candidate"
-
-            echo "Pushing tag $candidate to origin"
-            if git push origin "$candidate"; then
-              echo "Successfully pushed tag $candidate"
-              echo "final_tag=$candidate" >> "$GITHUB_OUTPUT"
-              echo "final_version=${candidate#v}" >> "$GITHUB_OUTPUT"
-              break
-            else
-              echo "Tag push failed (likely race). Deleting local tag and incrementing patch to retry."
-              git tag -d "$candidate" || true
-              candidate=$(increment_patch "$candidate")
-            fi
-          done
-
-      - name: Output result
-        run: |
-          echo "Version set in PR: ${{ steps.reserve_and_push.outputs.final_version }}"
-          echo "Tag created (provisional at PR commit): ${{ steps.reserve_and_push.outputs.final_tag }}"
-
-  repoint_tag_on_push:
-    # only run for real pushes to main
-    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+  # Create annotated git tag on push to main (after PR merge)
+  tag_on_merge:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout main
-        uses: actions/checkout@v4
+      # Checkout main branch at merge commit
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Read version from setup.py
-        id: version
+      # Configure git author for tagging
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      # Read version from setup.py and create tag pointing to merge commit
+      - name: Create version tag from setup.py
         run: |
-          ver=$(sed -n -E "s/.*version\s*=\s*['\"]([0-9]+\.[0-9]+\.[0-9]+)['\"].*/\1/p" setup.py)
-          if [ -z "$ver" ]; then
+          # Extract version from setup.py
+          version=$(sed -n 's/.*version="\([^"]*\)".*/\1/p' setup.py)
+          if [ -z "$version" ]; then
             echo "Could not extract version from setup.py" >&2
             exit 1
           fi
-          echo "version=$ver" >> "$GITHUB_OUTPUT"
-          echo "tag=v$ver" >> "$GITHUB_OUTPUT"
-          echo "Detected version: v$ver"
-
-      - name: Move or create tag to point at merge commit
-        env:
-          PUSH_TOKEN: ${{ secrets.PUSH_TOKEN || '' }}
-          REPO: ${{ github.repository }}
-        run: |
-          set -euo pipefail
-          GHTOKEN="${PUSH_TOKEN:-${GITHUB_TOKEN}}"
-          MAIN_SHA=$(git rev-parse HEAD)
-          TAG="${{ steps.version.outputs.tag }}"
-
-          echo "Updating tag $TAG to point to commit $MAIN_SHA"
-
-          # check if tag ref exists
-          status=$(curl -s -o /dev/null -w "%{http_code}" \
-            -H "Authorization: token $GHTOKEN" \
-            "https://api.github.com/repos/${REPO}/git/refs/tags/${TAG}")
-
-          if [ "$status" = "200" ]; then
-            echo "Tag exists; moving it to new commit"
-            curl -s -X PATCH \
-              -H "Authorization: token $GHTOKEN" \
-              -H "Accept: application/vnd.github+json" \
-              -d "{\"sha\":\"${MAIN_SHA}\",\"force\":true}" \
-              "https://api.github.com/repos/${REPO}/git/refs/tags/${TAG}"
-          elif [ "$status" = "404" ]; then
-            echo "Tag not found; creating it at main commit"
-            curl -s -X POST \
-              -H "Authorization: token $GHTOKEN" \
-              -H "Accept: application/vnd.github+json" \
-              -d "{\"ref\":\"refs/tags/${TAG}\",\"sha\":\"${MAIN_SHA}\"}" \
-              "https://api.github.com/repos/${REPO}/git/refs"
-          else
-            echo "Unexpected status ${status} from GitHub API when checking tag; aborting"
-            exit 1
+          
+          # Derive tag name from version
+          tag="v$version"
+          
+          # Ensure we know about all remote tags
+          git fetch --tags
+          
+          # If the tag already exists locally or on the remote, skip creating it
+          if git rev-parse "$tag" >/dev/null 2>&1; then
+            echo "Tag $tag already exists locally, skipping tag creation"
+            exit 0
           fi
-
-          echo "✅ Tag ${TAG} now points to the merge commit ${MAIN_SHA}"
+          if git ls-remote --tags origin "$tag" | grep -q "$tag"; then
+            echo "Tag $tag already exists on remote, skipping tag creation"
+            exit 0
+          fi
+          
+          # Create annotated tag and push to origin
+          git tag -a "$tag" -m "Release $tag"
+          git push origin "$tag"
+          echo "✅ Tagged commit with $tag"
