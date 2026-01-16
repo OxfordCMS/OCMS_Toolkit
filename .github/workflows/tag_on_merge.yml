@@ -15,10 +15,10 @@ jobs:
   bump_version_on_pr:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    # prevents concurrent runs for the same PR
+    # prevents concurrent runs for the same PR and cancels outdated ones
     concurrency:
       group: version-bump-${{ github.event.pull_request.number }}
-      cancel-in-progress: false  # Wait for previous run to complete
+      cancel-in-progress: true  # Cancel previous run when a new one starts
     steps:
       # Checkout PR branch to make changes before merge
       - uses: actions/checkout@v4
