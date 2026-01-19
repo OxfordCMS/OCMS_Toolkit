@@ -2,6 +2,7 @@ name: Bump Version on PR
 
 on: 
   pull_request:
+    branches: [main]
     types: [opened, labeled, unlabeled]
 
 permissions:
