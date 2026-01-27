@@ -77,7 +77,7 @@ jobs:
           base_version="${{ steps.next_version.outputs.base_version }}"
           new_version="${{ steps.next_version.outputs.version }}"
           
-          # Extract current version - supports both single and double quotes, with or without spaces
+          # Extract current version - supports both single and double quotes
           current_version=$(sed -n 's/^[[:space:]]*version[[:space:]]*=[[:space:]]*["\x27]\([^"'\'']*\)["\x27].*/\1/p' setup.py)
           
           if [ -z "$current_version" ]; then
