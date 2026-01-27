@@ -1,102 +1,20 @@
-name: Version & Tag on Merge
+name: Tag on Merge
 
 on:
-  pull_request:
-    types: [opened, labeled, unlabeled]
   push:
     branches: [main]
 
 permissions:
   contents: write
-  pull-requests: read
 
 jobs:
-  # Update setup.py on PR branch (before merge)
-  bump_version_on_pr:
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    # prevents concurrent runs for the same PR and cancels outdated ones
-    concurrency:
-      group: version-bump-${{ github.event.pull_request.number }}
-      cancel-in-progress: true  # Cancel previous run when a new one starts
-    steps:
-      # Checkout PR branch to make changes before merge
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          ref: ${{ github.head_ref }}
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      # Configure git author for commits
-      - run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-      # Extract version bump level from PR labels (major, minor, or patch)
-      - name: Get bump level from PR labels
-        id: bump_level
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const labels = context.payload.pull_request.labels.map(l => l.name.toLowerCase());
-            let level = 'patch'; // default to patch if no label found
-            if (labels.includes('major')) level = 'major';
-            else if (labels.includes('minor')) level = 'minor';
-            core.setOutput('level', level);
-            core.info(`Detected bump level: ${level} (labels: ${labels.join(', ')})`);
-
-      # Get latest tag and calculate the next version number
-      - name: Calculate next version
-        id: next_version
-        run: |
-          # Fetch latest version tag (v*.*.* format), sorted by semantic version
-          latest=$(git tag -l 'v*.*.*' --sort=-version:refname | head -n 1 || echo "v0.0.0")
-          version=${latest#v}
-          IFS='.' read -r major minor patch <<<"$version"
-          major=${major:-0}
-          minor=${minor:-0}
-          patch=${patch:-0}
-
-          # Increment version based on bump level
-          level="${{ steps.bump_level.outputs.level }}"
-          case $level in
-            major) major=$((major + 1)); minor=0; patch=0 ;;
-            minor) minor=$((minor + 1)); patch=0 ;;
-            *) patch=$((patch + 1)) ;;
-          esac
-
-          next_version="$major.$minor.$patch"
-          echo "version=$next_version" >> "$GITHUB_OUTPUT"
-          echo "New version: $next_version"
-
-      # Update setup.py with calculated version and push to PR branch
-      # Only commits if version differs from current to avoid duplicate bumps on label changes
-      - name: Update setup.py and commit to PR branch
-        run: |
-          new_version="${{ steps.next_version.outputs.version }}"
-          current_version=$(sed -n 's/.*version="\([^"]*\)".*/\1/p' setup.py)
-          
-          # Skip commit if version is already correct (prevents duplicate bumps on label changes)
-          if [ "$current_version" = "$new_version" ]; then
-            echo "Version already at $new_version, skipping commit"
-            exit 0
-          fi
-          
-          # Update version in setup.py
-          sed -i "s/version=\"[^\"]*\"/version=\"$new_version\"/" setup.py
-          git add setup.py
-          git commit -m "chore: bump version to $new_version"
-          git push origin HEAD:${{ github.head_ref }}
-
-  # Create annotated git tag on push to main (after PR merge)
-  tag_on_merge:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+  create_tag:
     runs-on: ubuntu-latest
     steps:
       # Checkout main branch at merge commit
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0  # Fetch all history and tags to check for existing tags
           token: ${{ secrets.GITHUB_TOKEN }}
 
       # Configure git author for tagging
@@ -114,7 +32,7 @@ jobs:
             exit 1
           fi
           
-          # Derive tag name from version
+          # Derive tag name from version (e.g., 1.2.3 -> v1.2.3)
           tag="v$version"
           
           # Ensure we know about all remote tags
