@@ -54,6 +54,10 @@ jobs:
           minor=${minor:-0}
           patch=${patch:-0}
 
+          # Store base version for resetting setup.py
+          echo "base_version=$version" >> "$GITHUB_OUTPUT"
+          echo "Base version from tag: $version"
+
           # Increment version based on bump level
           level="${{ steps.bump_level.outputs.level }}"
           case $level in
@@ -67,20 +71,20 @@ jobs:
           echo "New version: $next_version"
 
       # Update setup.py with calculated version and push to PR branch
-      # Only commits if version differs from current to avoid duplicate bumps on label changes
+      # Always resets to base version first, then applies the bump
       - name: Update setup.py and commit to PR branch
         run: |
+          base_version="${{ steps.next_version.outputs.base_version }}"
           new_version="${{ steps.next_version.outputs.version }}"
-          current_version=$(sed -n 's/.*version="\([^"]*\)".*/\1/p' setup.py)
           
-          # Skip commit if version is already correct (prevents duplicate bumps on label changes)
-          if [ "$current_version" = "$new_version" ]; then
-            echo "Version already at $new_version, skipping commit"
-            exit 0
-          fi
+          # First reset setup.py to base version (from latest tag)
+          sed -i "s/version=\"[^\"]*\"/version=\"$base_version\"/" setup.py
+          echo "Reset setup.py to base version: $base_version"
           
-          # Update version in setup.py
+          # Then update to the new calculated version
           sed -i "s/version=\"[^\"]*\"/version=\"$new_version\"/" setup.py
+          echo "Updated setup.py to new version: $new_version"
+          
           git add setup.py
           # [skip ci] prevents this commit from triggering workflows again
           git commit -m "chore: bump version to $new_version [skip ci]"
