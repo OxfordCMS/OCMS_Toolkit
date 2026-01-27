@@ -77,8 +77,8 @@ jobs:
           base_version="${{ steps.next_version.outputs.base_version }}"
           new_version="${{ steps.next_version.outputs.version }}"
           
-          # Extract current version - supports single/double quotes and optional spaces around equals
-          current_version=$(sed -n 's/^[[:space:]]*version[[:space:]]*=[[:space:]]*["\x27]\([^"'\'']*\)["\x27].*/\1/p' setup.py)
+          # Extract current version - supports single/double quotes
+          current_version=$(sed -n 's/^[[:space:]]*version=["\x27]\([^"'\'']*\)["\x27].*/\1/p' setup.py)
           
           if [ -z "$current_version" ]; then
             echo "Error: Could not extract current version from setup.py"
@@ -89,10 +89,10 @@ jobs:
           
           # Reset setup.py to base version if it differs (from latest tag)
           if [ "$current_version" != "$base_version" ]; then
-            sed -i "s/^\([[:space:]]*version[[:space:]]*=[[:space:]]*\)[\"'][^\"']*[\"']/\1\"$base_version\"/" setup.py
+            sed -i "s/^\([[:space:]]*version=\)[\"'][^\"']*[\"']/\1\"$base_version\"/" setup.py
             
             # Verify the reset worked
-            verify_version=$(sed -n 's/^[[:space:]]*version[[:space:]]*=[[:space:]]*["\x27]\([^"'\'']*\)["\x27].*/\1/p' setup.py)
+            verify_version=$(sed -n 's/^[[:space:]]*version=["\x27]\([^"'\'']*\)["\x27].*/\1/p' setup.py)
             if [ "$verify_version" != "$base_version" ]; then
               echo "Error: Failed to reset version to $base_version (got $verify_version)"
               exit 1
@@ -103,10 +103,10 @@ jobs:
           fi
           
           # Then update to the new calculated version
-          sed -i "s/^\([[:space:]]*version[[:space:]]*=[[:space:]]*\)[\"'][^\"']*[\"']/\1\"$new_version\"/" setup.py
+          sed -i "s/^\([[:space:]]*version=\)[\"'][^\"']*[\"']/\1\"$new_version\"/" setup.py
           
           # Verify the update worked
-          final_version=$(sed -n 's/^[[:space:]]*version[[:space:]]*=[[:space:]]*["\x27]\([^"'\'']*\)["\x27].*/\1/p' setup.py)
+          final_version=$(sed -n 's/^[[:space:]]*version=["\x27]\([^"'\'']*\)["\x27].*/\1/p' setup.py)
           if [ "$final_version" != "$new_version" ]; then
             echo "Error: Failed to update version to $new_version (got $final_version)"
             exit 1
