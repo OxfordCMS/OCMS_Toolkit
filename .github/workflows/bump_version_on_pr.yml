@@ -76,18 +76,41 @@ jobs:
         run: |
           base_version="${{ steps.next_version.outputs.base_version }}"
           new_version="${{ steps.next_version.outputs.version }}"
-          current_version=$(sed -n 's/.*version="\([^"]*\)".*/\1/p' setup.py)
+          
+          # Extract current version - supports both single and double quotes, with or without spaces
+          current_version=$(sed -n 's/.*version[[:space:]]*=[[:space:]]*["\x27]\([^"'\'']*\)["\x27].*/\1/p' setup.py)
+          
+          if [ -z "$current_version" ]; then
+            echo "Error: Could not extract current version from setup.py"
+            exit 1
+          fi
+          
+          echo "Current version in setup.py: $current_version"
           
           # Reset setup.py to base version if it differs (from latest tag)
           if [ "$current_version" != "$base_version" ]; then
-            sed -i "s/version=\"[^\"]*\"/version=\"$base_version\"/" setup.py
+            sed -i "s/\(version[[:space:]]*=[[:space:]]*\)[\"'][^\"']*[\"']/\1\"$base_version\"/" setup.py
+            
+            # Verify the reset worked
+            verify_version=$(sed -n 's/.*version[[:space:]]*=[[:space:]]*["\x27]\([^"'\'']*\)["\x27].*/\1/p' setup.py)
+            if [ "$verify_version" != "$base_version" ]; then
+              echo "Error: Failed to reset version to $base_version (got $verify_version)"
+              exit 1
+            fi
             echo "Reset setup.py to base version: $base_version (was $current_version)"
           else
             echo "setup.py already at base version: $base_version"
           fi
           
           # Then update to the new calculated version
-          sed -i "s/version=\"[^\"]*\"/version=\"$new_version\"/" setup.py
+          sed -i "s/\(version[[:space:]]*=[[:space:]]*\)[\"'][^\"']*[\"']/\1\"$new_version\"/" setup.py
+          
+          # Verify the update worked
+          final_version=$(sed -n 's/.*version[[:space:]]*=[[:space:]]*["\x27]\([^"'\'']*\)["\x27].*/\1/p' setup.py)
+          if [ "$final_version" != "$new_version" ]; then
+            echo "Error: Failed to update version to $new_version (got $final_version)"
+            exit 1
+          fi
           echo "Updated setup.py to new version: $new_version"
           
           git add setup.py
