@@ -71,15 +71,20 @@ jobs:
           echo "New version: $next_version"
 
       # Update setup.py with calculated version and push to PR branch
-      # Always resets to base version first, then applies the bump
+      # Resets to base version first if needed, then applies the bump
       - name: Update setup.py and commit to PR branch
         run: |
           base_version="${{ steps.next_version.outputs.base_version }}"
           new_version="${{ steps.next_version.outputs.version }}"
+          current_version=$(sed -n 's/.*version="\([^"]*\)".*/\1/p' setup.py)
           
-          # First reset setup.py to base version (from latest tag)
-          sed -i "s/version=\"[^\"]*\"/version=\"$base_version\"/" setup.py
-          echo "Reset setup.py to base version: $base_version"
+          # Reset setup.py to base version if it differs (from latest tag)
+          if [ "$current_version" != "$base_version" ]; then
+            sed -i "s/version=\"[^\"]*\"/version=\"$base_version\"/" setup.py
+            echo "Reset setup.py to base version: $base_version (was $current_version)"
+          else
+            echo "setup.py already at base version: $base_version"
+          fi
           
           # Then update to the new calculated version
           sed -i "s/version=\"[^\"]*\"/version=\"$new_version\"/" setup.py
