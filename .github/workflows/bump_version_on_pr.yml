@@ -76,7 +76,7 @@ jobs:
           base_version="${{ steps.next_version.outputs.base_version }}"
           new_version="${{ steps.next_version.outputs.version }}"
           
-          # Extract current version from setup.py to verify it matches the base version
+          # Extract current version from setup.py
           current_version=$(sed -n 's/^[[:space:]]*version=["\x27]\([^"'\'']*\)["\x27].*/\1/p' setup.py)
           
           if [ -z "$current_version" ]; then
@@ -84,14 +84,30 @@ jobs:
             exit 1
           fi
           
-          # Check for race condition: setup.py should match the base version from git tag
-          if [ "$current_version" != "$base_version" ]; then
-            echo "Error: Race condition detected - setup.py has version $current_version but expected $base_version from git tag"
-            echo "This likely means another PR was merged after this workflow started"
-            exit 1
+          echo "Current version in setup.py: $current_version"
+          echo "Base version from git tag: $base_version"
+          echo "Target version: $new_version"
+          
+          # Check if version is already at target - this is a no-op scenario
+          if [ "$current_version" = "$new_version" ]; then
+            echo "Version is already at target ($new_version). No update needed."
+            exit 0
           fi
           
-          echo "Verified setup.py matches base version from git tag: $base_version"
+          # Check if version is at base - this is the normal update scenario
+          if [ "$current_version" = "$base_version" ]; then
+            echo "Version is at base version. Proceeding with bump to $new_version"
+          else
+            # Version is neither base nor target - this is unexpected
+            echo "Error: setup.py has unexpected version $current_version"
+            echo "Expected either base version ($base_version) or target version ($new_version)"
+            echo "This may indicate:"
+            echo "  - Another PR was merged while this workflow was running"
+            echo "  - The PR branch is out of sync with main"
+            echo "  - Manual version changes were made to setup.py"
+            echo "Please update your branch from main or reset setup.py to match the git tag"
+            exit 1
+          fi
           
           # Update setup.py with the new calculated version
           sed -i "s/^\([[:space:]]*version=\)[\"'][^\"']*[\"']/\1\"$new_version\"/" setup.py
