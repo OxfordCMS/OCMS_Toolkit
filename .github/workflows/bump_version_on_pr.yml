@@ -54,6 +54,10 @@ jobs:
           minor=${minor:-0}
           patch=${patch:-0}
 
+          # Store base version for resetting setup.py
+          echo "base_version=$version" >> "$GITHUB_OUTPUT"
+          echo "Base version from tag: $version"
+
           # Increment version based on bump level
           level="${{ steps.bump_level.outputs.level }}"
           case $level in
@@ -67,20 +71,48 @@ jobs:
           echo "New version: $next_version"
 
       # Update setup.py with calculated version and push to PR branch
-      # Only commits if version differs from current to avoid duplicate bumps on label changes
+      # Resets to base version first if needed, then applies the bump
       - name: Update setup.py and commit to PR branch
         run: |
+          base_version="${{ steps.next_version.outputs.base_version }}"
           new_version="${{ steps.next_version.outputs.version }}"
-          current_version=$(sed -n 's/.*version="\([^"]*\)".*/\1/p' setup.py)
           
-          # Skip commit if version is already correct (prevents duplicate bumps on label changes)
-          if [ "$current_version" = "$new_version" ]; then
-            echo "Version already at $new_version, skipping commit"
-            exit 0
+          # Extract current version - supports single/double quotes
+          current_version=$(sed -n 's/^[[:space:]]*version=["\x27]\([^"'\'']*\)["\x27].*/\1/p' setup.py)
+          
+          if [ -z "$current_version" ]; then
+            echo "Error: Could not extract current version from setup.py"
+            exit 1
           fi
           
-          # Update version in setup.py
-          sed -i "s/version=\"[^\"]*\"/version=\"$new_version\"/" setup.py
+          echo "Current version in setup.py: $current_version"
+          
+          # Reset setup.py to base version if it differs (from latest tag)
+          if [ "$current_version" != "$base_version" ]; then
+            sed -i "s/^\([[:space:]]*version=\)[\"'][^\"']*[\"']/\1\"$base_version\"/" setup.py
+            
+            # Verify the reset worked
+            verify_version=$(sed -n 's/^[[:space:]]*version=["\x27]\([^"'\'']*\)["\x27].*/\1/p' setup.py)
+            if [ "$verify_version" != "$base_version" ]; then
+              echo "Error: Failed to reset version to $base_version (got $verify_version)"
+              exit 1
+            fi
+            echo "Reset setup.py to base version: $base_version (was $current_version)"
+          else
+            echo "setup.py already at base version: $base_version"
+          fi
+          
+          # Then update to the new calculated version
+          sed -i "s/^\([[:space:]]*version=\)[\"'][^\"']*[\"']/\1\"$new_version\"/" setup.py
+          
+          # Verify the update worked
+          final_version=$(sed -n 's/^[[:space:]]*version=["\x27]\([^"'\'']*\)["\x27].*/\1/p' setup.py)
+          if [ "$final_version" != "$new_version" ]; then
+            echo "Error: Failed to update version to $new_version (got $final_version)"
+            exit 1
+          fi
+          echo "Updated setup.py to new version: $new_version"
+          
           git add setup.py
           # [skip ci] prevents this commit from triggering workflows again
           git commit -m "chore: bump version to $new_version [skip ci]"
