@@ -9,7 +9,7 @@ setup(
     # package information
     name='ocms_toolkit',
     # NOTE: Keep version format as version="x.y.z" (double quotes, no spaces) for workflow compatibility
-    version="1.2.0",
+    version="1.1.3",
     description='OCMS_Toolkit : Oxford Centre for Microbiome Studies bioinformatic scripts',
     author='Sandi Yen, Nicholas Ilott, Jethro Johnson',
     license="MIT",
