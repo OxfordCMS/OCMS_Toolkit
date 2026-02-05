@@ -30,6 +30,17 @@ def get_fastns(datadir='.', *args: int):
         " i.e. get_fastns(datadir='.', 1,2) for paired end reads;"
         " i.e. get_fastns(datadir='.', 0) for single end reads"
     )
+    
+    # if datadir is falsy or not a directory,return the appropriately shaped empty result so config can run.
+    if not datadir or not os.path.isdir(datadir):
+        if args_set == {0}:
+            return []
+        elif args_set == {1}:
+            return []
+        elif args_set == {1,2}:
+            return [], []
+        else:  # {1,2,3}
+            return [], [], []
 
     # look for all fastn.1.gz, fastn.2.gz, fastn.gz
     fn_regex = re.compile(r"(\S+)(\.fast[a,q])(.*gz)")
