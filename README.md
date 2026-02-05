@@ -3,7 +3,7 @@
 OCMS_Toolkit is a repository of scripts useful for bioinformatics work at OCMS.
 
 # Requirements
-python 3.8+x
+python >=3.8.2
 
 # Installation
 OCMS_Toolkit can be installed by running the following:
