@@ -87,9 +87,7 @@ def subsample_fastq(infile, outfile):
 
     depth = PARAMS['seqtk_depth']
     # subsample file with seed
-    fq = re.sub("\\.gz$", "", outfile)
-    statement = '''seqtk sample -s100 %(infile)s %(depth)s > %(fq)s &&
-                   gzip %(fq)s'''
+    statement = '''seqtk sample -s100 %(infile)s %(depth)s | gzip %(outfile)s'''
     P.run(statement,
           job_threads = PARAMS['seqtk_job_threads'],
           job_memory = PARAMS['seqtk_job_memory'])
