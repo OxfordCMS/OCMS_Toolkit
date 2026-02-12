@@ -147,15 +147,19 @@ class MetaFastn:
         '''check if paired
         '''
         if self.fastn1.endswith(".1.gz"):
-            paired_name = self.fastn1.replace(".1",".2")
-            assert len(glob.glob(paired_name)) > 0, (
-                f"cannot find read 2 file at location {paired_name}"
-                f" associated with read 1 file {self.fastn1}")
-            self.fastn2 = paired_name
-            # fastn3 is defined if data is paired, regardless of whether or
-            # or not singletons actually exist - this is because a fastn3 file
-            # is created automatically in pipelines even if there are no singletons
-            self.fastn3 = self.fastn1.replace(".1",".3")
+            # Check for paired read files
+            paired_name = self.fastn1[:-len(".1.gz")] + ".2.gz"
+            if os.path.exists(paired_name):
+                self.fastn2 = paired_name
+                self.fastn3 = self.fastn1.replace(".1.gz",".3.gz")
+
+            # Check for a singleton file
+            singleton_name = self.fastn1[:-len(".1.gz")]
+            if os.path.exists(singleton_name):
+                singleton_name = singleton_name
+                
+        else:
+            raise NameError("input files must end with '.1.gz'")
 
     '''check for singletons'''
     def find_singleton(self):
@@ -200,11 +204,11 @@ class MetaFastn:
             # define fn3_suffix regardless if file exists
             self.fn3_suffix = f'.{self.fileformat}.3.gz'
         else:
-            assert self.fastn1.endswith(f".{self.fileformat}.gz"), (
+            assert self.fastn1.endswith(f".{self.fileformat}.1.gz"), (
                 "Single-end fastq files must be in notation "
-                f"'{self.fileformat}.gz'"
+                f"'{self.fileformat}.1.gz'"
             )
-            self.fn1_suffix = f".{self.fileformat}.gz"
+            self.fn1_suffix = f".{self.fileformat}.1.gz"
 
 class MetaBam:
     '''
