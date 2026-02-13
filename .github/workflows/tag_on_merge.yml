@@ -26,7 +26,7 @@ jobs:
       - name: Create version tag from setup.py
         run: |
           # Extract version from setup.py
-          version=$(sed -n 's/.*version="\([^"]*\)".*/\1/p' setup.py)
+          version=$(sed -n 's/^\s*version="\([^"]*\)".*/\1/p' setup.py)
           if [ -z "$version" ]; then
             echo "Could not extract version from setup.py" >&2
             exit 1
