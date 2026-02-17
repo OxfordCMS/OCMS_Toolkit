@@ -15,14 +15,16 @@ def main(argv=None):
     argv = sys.argv
 
     path = os.path.join(os.path.abspath(os.path.dirname(__file__)))
-    paths = [path, os.path.abspath(__file__)[:-3]]
+    paths = [path,
+             os.path.join(path, 'scripts'),
+             os.path.abspath(__file__)[:-3]]
     
     if len(argv) == 1 or argv[1] == "--help" or argv[1] == "-h":
         print((globals()["__doc__"]))
 
     command = argv[1]
     
-    if command in ["new_project", "rename_and_link"]:
+    if command in ["new_project", "rename_and_link", "taxid2taxonomy"]:
         pipeline = command
     else:
         pipeline = "pipeline_{}".format(command)
