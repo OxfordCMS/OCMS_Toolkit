@@ -5,6 +5,52 @@ import re
 import glob
 import errno
 import cgatcore.iotools as IOTools
+import os.path
+
+def load_params_safe(P, config_paths=None):
+    """
+    Return (PARAMS, FASTQs). Safe: never raises if config missing — returns ({}, []).
+    """
+    if config_paths is None:
+        config_paths = ["pipeline.yml"]
+
+    PARAMS = P.get_parameters(config_paths) or {}
+    indir = PARAMS.get("general_input.dir", "input.dir")
+    FASTQs = get_fastns(indir) if os.path.isdir(indir) else []
+    return PARAMS, FASTQs
+
+def ensure_pipeline_ready(argv, P, config_paths=None):
+    """
+    Validate pipeline config and input FASTQs.
+
+    Returns (PARAMS, fastqs). If user asked for config/help returns ({}, []).
+    Raises RuntimeError on missing config / input dir / FASTQs.
+    """
+    argv = argv or []
+    if any(x in argv for x in ("config", "-h", "--help", "show")):
+        return {}, []
+
+    if config_paths is None:
+        script_base = os.path.splitext(__file__)[0]
+        config_paths = [f"{script_base}/pipeline.yml", "pipeline.yml"]
+
+    existing = next((p for p in config_paths if os.path.exists(p)), None)
+    if not existing:
+        raise RuntimeError(
+            "pipeline.yml not found.\nCreate one using your pipeline config command."
+        )
+
+    PARAMS = P.get_parameters(config_paths) or {}
+    indir = PARAMS.get("general_input.dir", "input.dir")
+
+    if not os.path.exists(indir):
+        raise RuntimeError(f"Input directory '{indir}' does not exist.")
+
+    fastqs = get_fastns(indir)
+    if not fastqs:
+        raise RuntimeError(f"No FASTQ files found in '{indir}'.")
+
+    return PARAMS, fastqs
 
 # Check that the input files correspond
 def get_fastns(datadir='.', *args: int):
