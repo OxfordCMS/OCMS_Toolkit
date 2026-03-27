@@ -119,6 +119,7 @@ class MetaFastn:
         self.fn2_suffix = None
         self.fn3_suffix = None
         self.prefix = None
+        self.prefixstrip = None
         self.file_format = None
         self.head = []
 
@@ -185,17 +186,18 @@ class MetaFastn:
         empty files by defult.'''
         if self.fastn1.endswith(".1.gz"):
             # Start by checking for mate pairs
-            pair_name = self.fastn.rstrip(".1.gz") + ".2.gz"
+            pair_name = self.fastn1.rstrip(".1.gz") + ".2.gz"
             if os.path.exists(pair_name):
                 self.fastn2 = pair_name
 
             # Subsequently check for singletons
-            singleton_name = self.fastn.rstrip(".1.gz") + ".3.gz"
-            if.os.path.exists(singleton_name):
+            singleton_name = self.fastn1.rstrip(".1.gz") + ".3.gz"
+            if os.path.exists(singleton_name):
                 assert self.fastn2, f"Singleton file {singleton_name} exists without mate pair"
                 # Only record presence of singleton file if it is not empty
                 if len(IOTools.open_file(singleton_name).read(1)) > 0:              
                     self.fastn3 = singleton_name
+                    self.has_singleton = True
                 else:
                     E.warn(f"File {singleton_name} exists, but is empty"
                            " and is therefore being ignored")
@@ -215,7 +217,7 @@ class MetaFastn:
             assert self.fastn1.endswith('.' + self.file_format + '.gz'), msg
             self.fn1_suffix = '.' + self.file_format + '.gz'
 
-        self.prefix = os.path.basename(self.fastn1).rstrip(self.fastn1_suffix)
+        self.prefix = os.path.basename(self.fastn1).rstrip(self.fn1_suffix)
 
         
 class MetaBam:
