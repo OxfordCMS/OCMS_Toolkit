@@ -3,8 +3,8 @@
 import os
 import re
 import glob
+import gzip
 import errno
-import cgatcore.iotools as IOTools
 
 # Check that the input files correspond
 def get_fastns(datadir='.', *args: int):
@@ -82,6 +82,50 @@ def relink(inf, outf):
             os.remove(outf)
             os.symlink(inf, outf)
 
+def open_file(filename, mode="r", create_dir=False, encoding="utf-8"):
+    '''open file called *filename* with mode *mode*.
+    from cgat-core.iotools
+    
+    gzip - compressed files are recognized by the
+    suffix ``.gz`` and opened transparently.
+
+    Creates directory if create_dir is True and the directory does not exist.
+    
+    Note that there are differences in the file
+    like objects returned, for example in the
+    ability to seek.
+
+    Arguments
+    ---------
+    filename : string
+    mode : string
+       File opening mode
+    create_dir : bool
+       If True, the directory containing filename
+       will be created if it does not exist.
+
+    Returns
+    -------
+    File or file-like object in case of gzip compressed files.
+    '''
+
+    _, ext = os.path.splitext(filename)
+
+    if create_dir:
+        dirname = os.path.dirname(filename)
+        if dirname and not os.path.exists(dirname):
+            os.makedirs(dirname)
+
+    if ext.lower() in (".gz", ".z"):
+        if mode == "r":
+            return gzip.open(filename, 'rt', encoding=encoding)
+        elif mode == "w":
+            return gzip.open(filename, 'wt', encoding=encoding)
+        elif mode == "a":
+            return gzip.open(filename, 'wt', encoding=encoding)
+    else:
+        return open(filename, mode, encoding=encoding)
+
 class BaseTool:
     """
     Base class for all tool classes for handling pipeline infiles, outfiles, 
@@ -118,14 +162,13 @@ class MetaFastn:
         self.prefixstrip = None
         self.prefix = None
         self.fileformat = None
-        self.has_singleton = None
         self.head = []
 
         '''check file can be opened on init & capture header 
            (first 5 lines used for interleave and format checks)
         '''
         try:
-            self.openfile = IOTools.open_file(self.fastn1)
+            self.openfile = open_file(self.fastn1)
         except FileNotFoundError as e:
             msg = f"cannot open file {self.fastn1}"
             raise Exception(msg) from e
@@ -152,24 +195,19 @@ class MetaFastn:
                 f"cannot find read 2 file at location {paired_name}"
                 f" associated with read 1 file {self.fastn1}")
             self.fastn2 = paired_name
-            # fastn3 is defined if data is paired, regardless of whether or
-            # or not singletons actually exist - this is because a fastn3 file
-            # is created automatically in pipelines even if there are no singletons
-            self.fastn3 = self.fastn1.replace(".1",".3")
 
-    '''check for singletons'''
+    '''check for singletons
+       Only instantiate fastn3 if fastq3 file exists and is not empty
+    '''
     def find_singleton(self):
         fq3_name = self.fastn1.replace(".1",".3")
-        if os.path.exists(fq3_name):
-            # check file is not empty
-            if os.stat(fq3_name).st_size != 0:
-                self.has_singleton = True
-            else:
-                self.has_singleton = False
-
+        
+        if os.path.exists(fq3_name) and os.stat(fq3_name).st_size != 0:
+            self.fastn3 = fq3_name
 
     '''check it is fasta or fastq and if compressed'''    
     def get_format(self):
+        # valid extensions - add here to support other formats
         extensions=("fasta","fastq")
         for i in extensions:    
             if self.fastn1.endswith((i+".1.gz",i+".gz")):
@@ -197,8 +235,8 @@ class MetaFastn:
                 f" '.{self.fileformat}.1.gz'")
             self.fn1_suffix = f".{self.fileformat}.1.gz"
             self.fn2_suffix = f'.{self.fileformat}.2.gz'
-            # define fn3_suffix regardless if file exists
-            self.fn3_suffix = f'.{self.fileformat}.3.gz'
+            if self.fastn3 is not None:
+                self.fn3_suffix = f'.{self.fileformat}.3.gz'
         else:
             assert self.fastn1.endswith(f".{self.fileformat}.gz"), (
                 "Single-end fastq files must be in notation "
