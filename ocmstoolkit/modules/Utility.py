@@ -196,14 +196,15 @@ class MetaFastn:
                 f" associated with read 1 file {self.fastn1}")
             self.fastn2 = paired_name
 
-    '''check for singletons
+    '''check for singletons for PE reads
        Only instantiate fastn3 if fastq3 file exists and is not empty
     '''
     def find_singleton(self):
-        fq3_name = self.fastn1.replace(".1",".3")
+        if self.fastn2:
+            fq3_name = self.fastn1.replace(".1",".3")
         
-        if os.path.exists(fq3_name) and os.stat(fq3_name).st_size != 0:
-            self.fastn3 = fq3_name
+            if os.path.exists(fq3_name) and os.stat(fq3_name).st_size != 0:
+                self.fastn3 = fq3_name
 
     '''check it is fasta or fastq and if compressed'''    
     def get_format(self):
