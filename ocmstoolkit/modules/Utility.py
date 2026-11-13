@@ -181,11 +181,18 @@ class MetaFastn:
         self.find_singleton()
         self.get_format()
         self.get_suffix()
-        if self.prefixstrip is None:
-            self.prefix = os.path.basename(self.fastn1.rstrip(self.fn1_suffix))
-        else:
-            self.prefix = os.path.basename(self.fastn1.rstrip(self.prefixstrip))
+        self.get_prefixstrip()
 
+    def get_prefixstrip(self):
+        prefix = os.path.basename(self.fastn1)
+        if self.prefixstrip is None:
+            prefix = prefix.removesuffix(self.fn1_suffix)
+        else:
+            prefix = prefix.removesuffix(self.prefixstrip)
+        
+        prefix = prefix.rstrip(".")
+        self.prefix = prefix
+            
     def is_paired(self):
         '''check if paired
         '''
