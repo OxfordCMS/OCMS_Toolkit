@@ -35,13 +35,41 @@ Command line options
 
 import os
 import sys
+import argparse
+import logging
 import pysam
-import warnings
-from cgatcore import pipeline as P
-from cgatcore import experiment as E
-from cgatcore import iotools as IOTools
-from cgat import Fastq as Fastq
 import glob
+from ocmstoolkit.modules.Utility import open_file
+
+E = logging.getLogger("fastq2filteredfastq")
+
+
+class FastqRecord:
+    """A FASTQ record. ``identifier`` is the header line without the "@"."""
+
+    def __init__(self, identifier, seq, quals):
+        self.identifier = identifier
+        self.seq = seq
+        self.quals = quals
+
+    def __str__(self):
+        return f"@{self.identifier}\n{self.seq}\n+\n{self.quals}"
+
+
+def iterate_fastq(infile):
+    """Iterate over the records of an open FASTQ file (replaces cgat.Fastq)."""
+    while True:
+        header = infile.readline()
+        if not header:
+            return
+        seq = infile.readline()
+        infile.readline()
+        quals = infile.readline()
+        if not header.startswith("@") or not quals:
+            raise ValueError(f"truncated or invalid FASTQ record: {header}")
+        yield FastqRecord(header[1:].rstrip("\r\n"),
+                          seq.rstrip("\r\n"),
+                          quals.rstrip("\r\n"))
 
 class bamFilter():
     def __init__(self, bamfile, paired, filter_mapping):
@@ -97,15 +125,14 @@ class bamFilter():
         unmated = {}
 
         # initialize dictionary to count reads
-        self.counter = E.Counter()
-        self.counter.input_alignments = 0
-        self.counter.input_reads = 0
-        self.counter.output_reads = 0
-        self.counter.singleton_reads = 0
+        self.counter = {"input_alignments": 0,
+                        "input_reads": 0,
+                        "output_reads": 0,
+                        "singleton_reads": 0}
 
         with pysam.AlignmentFile(self.bamfile, "rb") as bamfile:
             for alignment in bamfile.fetch(until_eof=True):
-                self.counter.input_alignments += 1
+                self.counter["input_alignments"] += 1
                 qname = alignment.qname
                 
                 # paired end reads
@@ -127,13 +154,13 @@ class bamFilter():
                 # add mapped qname to dictionary if read is mapped
                 if filtered_qname:
                     mapped.update(filtered_qname)
-                    self.counter.output_reads += len(filtered_qname.keys())
+                    self.counter["output_reads"] += len(filtered_qname.keys())
 
             # Process remaining singletons at the end
             for remaining_read in unmated.values():
                 filtered_singleton = self.filter_mapping_se(remaining_read)
                 if filtered_singleton:
-                    self.counter.singleton_reads += 1
+                    self.counter["singleton_reads"] += 1
                     mapped.update(filtered_singleton)
         
         return mapped
@@ -151,7 +178,7 @@ class bamFilter():
         with paired end reads, will write each read in respective fastq file, 
         with forward read in fastq.1.gz, reverse read in fastq.2.gz, singletons
         in fastq.3.gz"""
-        summary = IOTools.open_file(f"{outdir}/{self.prefix}_filter_summary.tsv", 'w')
+        summary = open_file(f"{outdir}/{self.prefix}_filter_summary.tsv", 'w')
 
         # Open output fastq files for Read 1, Read 2, and 
         # Singletons (for paired-end reads)
@@ -159,12 +186,12 @@ class bamFilter():
             fastq1 = f"{outdir}/{self.prefix}_{self.filter_mapping}.fastq.1.gz"
             fastq2 = f"{outdir}/{self.prefix}_{self.filter_mapping}.fastq.2.gz"
             fastq3 = f"{outdir}/{self.prefix}_{self.filter_mapping}.fastq.3.gz"
-            fastq1_out = IOTools.open_file(fastq1, 'w')
-            fastq2_out = IOTools.open_file(fastq2, 'w')
-            fastq3_out = IOTools.open_file(fastq3, 'w')
+            fastq1_out = open_file(fastq1, 'w')
+            fastq2_out = open_file(fastq2, 'w')
+            fastq3_out = open_file(fastq3, 'w')
         else:
             fastq1 = f"{outdir}/{self.prefix}_{self.filter_mapping}.fastq.gz"
-            fastq_out = IOTools.open_file(fastq1, 'w')
+            fastq_out = open_file(fastq1, 'w')
     
         # get dictionary of mapped reads
         filtered_qnames = self.bam_filter_mapping()
@@ -172,15 +199,15 @@ class bamFilter():
         # if no mapped reads found, symlink in fastq file to outdir
         if not filtered_qnames:
             indir = os.path.dirname(in_fastq)
-            fastq_ins = os.glob.glob(f"{indir}/{self.prefix}*.fastq*.gz")
+            fastq_ins = glob.glob(f"{indir}/{self.prefix}*.fastq*.gz")
             fastq_outs = [fq.replace(indir, outdir) for fq in fastq_ins]
             for fq_in, fq_out in zip(fastq_ins, fastq_outs):
                 os.symlink(fq_in, fq_out)
             E.info(f"No mapped reads for {in_fastq} in {self.bamfile}")
 
         # stream in fastq file
-        for record in Fastq.iterate(IOTools.open_file(in_fastq)):
-            self.counter.input_reads += 1
+        for record in iterate_fastq(open_file(in_fastq)):
+            self.counter["input_reads"] += 1
             # strip record header of spaces
             id = record.identifier.split(" ")[0]
 
@@ -200,7 +227,7 @@ class bamFilter():
                 continue
 
         # write summary file
-        header, entry = zip(*self.counter.iteritems())
+        header, entry = zip(*self.counter.items())
         entry = [str(x) for x in entry]
         header = '\t'.join(header)
         entry = '\t'.join(entry)
@@ -226,7 +253,9 @@ def main(argv=None):
         argv = sys.argv
 
     # setup command line parser
-    parser = E.ArgumentParser(description = __doc__)
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter)
 
     parser.add_argument("-i", "--in_fastq", dest="in_fastq", type=str,
                         help="Fastq file to filter. Should be the fastq \
@@ -245,8 +274,10 @@ def main(argv=None):
                             reads as fastq.1 and fastq.2 of forward and reverse \
                             reads respectively and fastq.3 of singletons")
 
-    # add common options (-h/--help, ...) and parse command line
-    (args) = E.start(parser, argv=argv)
+    # parse command line
+    args = parser.parse_args(argv[1:])
+    logging.basicConfig(level=logging.INFO,
+                        format="%(asctime)s %(levelname)s %(message)s")
 
     E.info("iterating over bam file")
     E.info("filtering fastq file")
@@ -256,8 +287,6 @@ def main(argv=None):
     
     # iterate through bam, filter, and, write filtered reads to fastq
     filter_reads.bamfiltered2fastq(args.in_fastq, args.outdir)
-    
-    E.stop()
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv))

@@ -3,8 +3,21 @@
 import os
 import re
 import glob
+import gzip
 import errno
-import cgatcore.iotools as IOTools
+
+
+def open_file(filename, mode="r"):
+    '''Open a file, transparently (de)compressing it if it ends in ".gz".
+
+    Text mode is used unless ``mode`` contains "b". Replaces
+    cgatcore.iotools.open_file.
+    '''
+    if filename.endswith(".gz"):
+        if "b" not in mode and "t" not in mode:
+            mode += "t"
+        return gzip.open(filename, mode)
+    return open(filename, mode)
 
 # Check that the input files correspond
 def get_fastns(datadir='.', *args: int):
@@ -125,7 +138,7 @@ class MetaFastn:
            (first 5 lines used for interleave and format checks)
         '''
         try:
-            self.openfile = IOTools.open_file(self.fastn1)
+            self.openfile = open_file(self.fastn1)
         except FileNotFoundError as e:
             msg = f"cannot open file {self.fastn1}"
             raise Exception(msg) from e

@@ -82,7 +82,7 @@ def main(argv=None):
                         help="name of log file, default=read.map")
 
     # unpack commandline arguments
-    args = parser.parse_args()
+    args = parser.parse_args(argv[1:])
 
     # run directory
     rundir = os.path.abspath(".")
@@ -137,10 +137,6 @@ def main(argv=None):
             " Will not force overwriting")
         statement = f"ln -s {original} {newname}"
         os.system(statement)
-        
-        
-    def main(argv=None):
-        main(argv)
-        
+
 if __name__ == "__main__":
     sys.exit(main(sys.argv))

@@ -52,7 +52,7 @@ def main(argv=None):
                         choices=["group","user","both"], default="both",
                         help="level at which to set up project")
     
-    args = parser.parse_args()
+    args = parser.parse_args(argv[1:])
 
     # get local username and group
     username = getpass.getuser()
@@ -92,8 +92,5 @@ def main(argv=None):
         # symlink code
         os.symlink(code_dir, work_dir + "/code")
 
-    def main(argv=None):
-        main(argv)
-        
 if __name__ == "__main__":
     sys.exit(main(sys.argv))
