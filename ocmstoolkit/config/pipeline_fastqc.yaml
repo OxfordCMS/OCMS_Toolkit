@@ -1,0 +1,45 @@
+# Configuration for the ocms_toolkit fastqc pipeline.
+#
+# Created with:  ocms_toolkit fastqc config
+# Checked with:  ocms_toolkit fastqc full --dry
+# Run with:      ocms_toolkit fastqc full --jobs <N>
+#
+# Relative paths are relative to the directory the pipeline is run from.
+
+# ---------------------------------------------------------------------------
+# Input
+# ---------------------------------------------------------------------------
+
+# Directory containing the FASTQ files: <sample>.fastq.gz (single end) or
+# <sample>.fastq.1.gz and <sample>.fastq.2.gz (paired end).
+input_dir: "input.dir"
+
+# ---------------------------------------------------------------------------
+# Job resources
+# ---------------------------------------------------------------------------
+#
+# job_threads:  CPUs per job.
+# job_memory:   memory per CPU (e.g. 4G); a job receives
+#               job_memory x job_threads in total.
+# job_runtime:  wall time in minutes; if empty, the partition default applies.
+
+fastqc:
+  job_threads: 1
+  job_memory: 4G
+  job_runtime:
+
+multiqc:
+  job_threads: 1
+  job_memory: 20G
+  job_runtime:
+
+# ---------------------------------------------------------------------------
+# Slurm
+# ---------------------------------------------------------------------------
+#
+# Applied to every job the pipeline submits. List the accounts available to
+# you with:  sacctmgr show associations user=$USER format=Account
+
+resources:
+  slurm_account: "your_slurm_account"
+  slurm_partition: "short"
