@@ -1,2 +1,2 @@
-include ocmstoolkit/pipeline_*/pipeline.yml
-include ocmstoolkit/*.py
+include ocmstoolkit/workflows/*.smk
+include ocmstoolkit/config/*.yaml

@@ -1,8 +1,3 @@
-import sysconfig
-import sys
-import os
-import subprocess
-import re
 from setuptools import setup, find_packages
 
 setup(
@@ -16,11 +11,24 @@ setup(
     platforms=["any"],
     keywords="OCMS, bioinformatics, python",
     url="https://github.com/OxfordCMS/OCMS_Toolkit",
-    #packages=find_packages("./") + find_packages("./ocmstoolkit/"),
     packages=find_packages(),
-    entry_points={
-        'console_scripts': ['ocms_toolkit = ocmstoolkit.ocms_toolkit:main']
+    # Snakemake workflows and their configuration templates
+    package_data={
+        "ocmstoolkit": ["workflows/*.smk", "config/*.yaml"],
     },
     include_package_data=True,
-    python_requires='>=3.8.2'
+    entry_points={
+        'console_scripts': ['ocms_toolkit = ocmstoolkit.cli:main']
+    },
+    install_requires=[
+        "pysam",
+        "pyyaml",
+        "snakemake>=9",
+        "snakemake-executor-plugin-slurm",
+    ],
+    extras_require={
+        "test": ["pytest"],
+    },
+    # Snakemake 9 requires Python 3.11 or later
+    python_requires='>=3.11'
 )

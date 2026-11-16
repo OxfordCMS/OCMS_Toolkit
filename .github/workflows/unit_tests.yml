@@ -17,15 +17,12 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: "3.10"
+          python-version: "3.12"
 
       - name: Install dependencies
         run: |
           pip install --upgrade pip setuptools wheel
-          pip install apsw gevent numpy==1.24 pandas paramiko pep8 pytest pytest-pep8 drmaa pyyaml ruffus six sqlalchemy
-          pip install cgatcore
-          pip install -e .
-          pip install pytest
+          pip install -e ".[test]"
 
       - name: Run unit tests
         run: |
