@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ocms_toolkit"
+# NOTE: Keep the version line as version = "x.y.z" (double quotes, spaces
+# around "=", at the start of the line). The version bump and tagging
+# workflows in .github/workflows read and update this line.
+version = "1.1.7"
+description = "OCMS_Toolkit : Oxford Centre for Microbiome Studies bioinformatic scripts"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [
+    { name = "Sandi Yen" },
+    { name = "Nicholas Ilott" },
+    { name = "Jethro Johnson" },
+]
+keywords = ["OCMS", "bioinformatics", "python", "snakemake"]
+# Snakemake 9 requires Python 3.11 or later
+requires-python = ">=3.11"
+dependencies = [
+    "pysam",
+    "pyyaml",
+    "snakemake>=9",
+    "snakemake-executor-plugin-slurm",
+    "snakemake-executor-plugin-drmaa",
+]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[project.urls]
+Homepage = "https://github.com/OxfordCMS/OCMS_Toolkit"
+
+[project.scripts]
+ocms_toolkit = "ocmstoolkit.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["ocmstoolkit*"]
+exclude = ["ocmstoolkit.tests*"]
+
+[tool.setuptools.package-data]
+# Snakemake workflows and their configuration templates
+ocmstoolkit = ["workflows/*.smk", "config/*.yaml"]

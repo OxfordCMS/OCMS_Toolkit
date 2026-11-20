@@ -1,2 +1,0 @@
-include ocmstoolkit/workflows/*.smk
-include ocmstoolkit/config/*.yaml
